@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flow-diagram-game"
+version = "0.1.0"
+description = "A simple terminal flow-routing puzzle game"
+readme = "README.md"
+requires-python = ">=3.14"
+authors = [{ name = "Contributors" }]
+dependencies = [
+  "PySDL2>=0.9.16",
+  "pysdl2-dll>=2.30.10; platform_system == 'Windows'",
+]
+
+[project.optional-dependencies]
+sdl2 = [
+  "PySDL2>=0.9.16",
+  "pysdl2-dll>=2.30.10; platform_system == 'Windows'",
+]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
