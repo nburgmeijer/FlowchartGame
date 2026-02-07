@@ -3,7 +3,82 @@ from __future__ import annotations
 import ctypes
 import heapq
 import os
+import sys
 from dataclasses import dataclass, field
+
+from .game import DiagramEdge, DiagramNode, FlowLearningGame, Stage
+
+
+def configure_local_sdl_dll_paths() -> None:
+    if os.name != "nt":
+        return
+
+    candidates: list[str] = []
+
+    def push(path: str) -> None:
+        normalized = os.path.abspath(path)
+        if normalized not in candidates and os.path.isdir(normalized):
+            candidates.append(normalized)
+
+    env_hint = os.environ.get("PYSDL2_DLL_PATH")
+    if env_hint:
+        for part in env_hint.split(os.pathsep):
+            if part:
+                push(part)
+
+    app_root = (
+        os.path.dirname(sys.executable)
+        if getattr(sys, "frozen", False)
+        else os.path.dirname(os.path.abspath(__file__))
+    )
+    push(app_root)
+    push(os.path.join(app_root, "lib"))
+    push(os.path.join(app_root, "dll"))
+    push(os.path.join(app_root, "sdl2"))
+    push(os.path.join(app_root, "sdl2dll"))
+
+    meipass = getattr(sys, "_MEIPASS", "")
+    if meipass:
+        push(meipass)
+        push(os.path.join(meipass, "lib"))
+        push(os.path.join(meipass, "dll"))
+        push(os.path.join(meipass, "sdl2"))
+        push(os.path.join(meipass, "sdl2dll"))
+
+    runtime_candidates = [path for path in candidates if has_sdl_dll(path)]
+    if not runtime_candidates:
+        return
+
+    # Point PySDL2 to app-local copies first.
+    os.environ["PYSDL2_DLL_PATH"] = os.pathsep.join(runtime_candidates)
+
+    # Also register directories with Windows loader for direct ctypes loading.
+    current_path = os.environ.get("PATH", "")
+    for dll_dir in runtime_candidates:
+        if hasattr(os, "add_dll_directory"):
+            try:
+                os.add_dll_directory(dll_dir)
+            except OSError:
+                pass
+        if dll_dir not in current_path.split(os.pathsep):
+            current_path = (
+                f"{dll_dir}{os.pathsep}{current_path}"
+                if current_path
+                else dll_dir
+            )
+    os.environ["PATH"] = current_path
+
+
+def has_sdl_dll(path: str) -> bool:
+    try:
+        names = os.listdir(path)
+    except OSError:
+        return False
+    lowered = [name.lower() for name in names]
+    return any(name.startswith("sdl2") and name.endswith(".dll") for name in lowered)
+
+
+configure_local_sdl_dll_paths()
 
 try:
     import sdl2
@@ -14,8 +89,6 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     SDL_IMPORT_ERROR: ModuleNotFoundError | None = exc
 else:
     SDL_IMPORT_ERROR = None
-
-from .game import DiagramEdge, DiagramNode, FlowLearningGame, Stage
 
 WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 900

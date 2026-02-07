@@ -69,7 +69,7 @@ jobs:
               Version="0.1.0"
               UpgradeCode="C8DF6A6C-F9F5-4A8E-B81C-42A903D7114B">
               <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
-              <MediaTemplate />
+              <MediaTemplate EmbedCab="yes" />
 
               <StandardDirectory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLFOLDER" Name="FlowchartGame">
@@ -98,3 +98,4 @@ jobs:
           path: |
             dist/FlowchartGame-arm64.msi
             dist/FlowchartGame-arm64.exe
+            dist/*.cab
