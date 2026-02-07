@@ -54,6 +54,10 @@ Do not commit secrets or machine-specific files. Keep environment-specific setti
 - For Windows artifacts:
   - Update `.github/workflows/windows-exe.yml` and `.github/workflows/windows-arm-exe.yml` so the dependency binaries/data are bundled.
   - Do not rely on target machines to have dependency libraries preinstalled.
+- For architecture-specific builds (for example Windows ARM64):
+  - Always prefer architecture-native dependency binaries/wheels first.
+  - Fail early in CI when a dependency has no payload for the target architecture.
+  - Only use fallback download logic when no architecture-native package is available, and keep that fallback explicit in workflow logs.
 - Any non-stdlib import that can be missing at runtime must use an import guard pattern:
   - wrap import in `try/except ModuleNotFoundError`
   - store the import error in a module-level variable
