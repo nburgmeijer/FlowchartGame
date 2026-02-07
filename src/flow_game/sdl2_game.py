@@ -4,6 +4,7 @@ import ctypes
 import heapq
 import os
 import sys
+import tempfile
 from dataclasses import dataclass, field
 
 from .game import DiagramEdge, DiagramNode, FlowLearningGame, Stage
@@ -128,13 +129,177 @@ def walk_for_sdl_dll_dirs(root: str, max_depth: int) -> list[str]:
 configure_local_sdl_dll_paths()
 
 try:
-    from . import sdl_compat as sdl2
-    from .sdl_compat import sdlttf
+    # Keep PySDL3 deterministic in packaged/offline environments.
+    os.environ.setdefault("SDL_DOC_GENERATOR", "0")
+    os.environ.setdefault("SDL_CHECK_VERSION", "0")
+    os.environ.setdefault("SDL_CHECK_BINARY_VERSION", "0")
+    os.environ.setdefault("SDL_DISABLE_METADATA", "1")
+    os.environ.setdefault("SDL_DOWNLOAD_BINARIES", "1")
+    os.environ.setdefault("SDL_FIND_BINARIES", "1")
+    os.environ.setdefault("SDL_LOG_LEVEL", "2")
+    os.environ.setdefault(
+        "SDL_BINARY_PATH",
+        os.path.join(tempfile.gettempdir(), "pysdl3-bin"),
+    )
+
+    import sdl3 as _sdl3
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     sdl2 = None  # type: ignore[assignment]
     sdlttf = None  # type: ignore[assignment]
     SDL_IMPORT_ERROR: ModuleNotFoundError | None = exc
 else:
+    sdl2 = _sdl3
+
+    def _install_sdl3_compat_shims() -> None:
+        # SDL2-style names/flags used by this codebase.
+        sdl2.SDL_WINDOW_SHOWN = 0
+        sdl2.SDL_RENDERER_ACCELERATED = 0
+        sdl2.SDL_RENDERER_PRESENTVSYNC = 0
+        sdl2.SDL_SYSTEM_CURSOR_ARROW = _sdl3.SDL_SYSTEM_CURSOR_DEFAULT
+        sdl2.SDL_SYSTEM_CURSOR_HAND = _sdl3.SDL_SYSTEM_CURSOR_POINTER
+        sdl2.SDL_QUIT = _sdl3.SDL_EVENT_QUIT
+        sdl2.SDL_KEYDOWN = _sdl3.SDL_EVENT_KEY_DOWN
+        sdl2.SDL_MOUSEBUTTONDOWN = _sdl3.SDL_EVENT_MOUSE_BUTTON_DOWN
+        sdl2.SDL_MOUSEBUTTONUP = _sdl3.SDL_EVENT_MOUSE_BUTTON_UP
+        sdl2.SDL_MOUSEMOTION = _sdl3.SDL_EVENT_MOUSE_MOTION
+        sdl2.SDLK_r = _sdl3.SDLK_R
+        sdl2.SDLK_x = _sdl3.SDLK_X
+
+        def _as_frect(rect: _sdl3.SDL_Rect | None) -> _sdl3.SDL_FRect | None:
+            if rect is None:
+                return None
+            return _sdl3.SDL_FRect(
+                float(rect.x),
+                float(rect.y),
+                float(rect.w),
+                float(rect.h),
+            )
+
+        def _sdl_create_window(
+            title: bytes,
+            x: int,
+            y: int,
+            w: int,
+            h: int,
+            flags: int,
+        ) -> ctypes.c_void_p:
+            window = _sdl3.SDL_CreateWindow(title, w, h, flags)
+            if (
+                window
+                and x != _sdl3.SDL_WINDOWPOS_CENTERED
+                and y != _sdl3.SDL_WINDOWPOS_CENTERED
+            ):
+                _sdl3.SDL_SetWindowPosition(window, x, y)
+            return window
+
+        def _sdl_create_renderer(
+            window: ctypes.c_void_p,
+            index: int,
+            flags: int,
+        ) -> ctypes.c_void_p:
+            del index, flags
+            return _sdl3.SDL_CreateRenderer(window, None)
+
+        def _sdl_get_renderer_output_size(
+            renderer: ctypes.c_void_p,
+            w: ctypes._Pointer[ctypes.c_int],
+            h: ctypes._Pointer[ctypes.c_int],
+        ) -> bool:
+            return _sdl3.SDL_GetCurrentRenderOutputSize(renderer, w, h)
+
+        def _sdl_get_mouse_state(
+            x: ctypes._Pointer[ctypes.c_int],
+            y: ctypes._Pointer[ctypes.c_int],
+        ) -> int:
+            fx = ctypes.c_float()
+            fy = ctypes.c_float()
+            buttons = _sdl3.SDL_GetMouseState(ctypes.byref(fx), ctypes.byref(fy))
+            x_ptr = ctypes.cast(x, ctypes.POINTER(ctypes.c_int))
+            y_ptr = ctypes.cast(y, ctypes.POINTER(ctypes.c_int))
+            x_ptr[0] = int(round(fx.value))
+            y_ptr[0] = int(round(fy.value))
+            return int(buttons)
+
+        def _sdl_render_copy(
+            renderer: ctypes.c_void_p,
+            texture: ctypes.c_void_p,
+            src: _sdl3.SDL_Rect | None,
+            dst: _sdl3.SDL_Rect | None,
+        ) -> bool:
+            src_f = _as_frect(src)
+            dst_f = _as_frect(dst)
+            src_p = ctypes.byref(src_f) if src_f is not None else None
+            dst_p = ctypes.byref(dst_f) if dst_f is not None else None
+            return _sdl3.SDL_RenderTexture(renderer, texture, src_p, dst_p)
+
+        def _sdl_render_fill_rect(
+            renderer: ctypes.c_void_p,
+            rect: _sdl3.SDL_Rect,
+        ) -> bool:
+            frect = _as_frect(rect)
+            return _sdl3.SDL_RenderFillRect(renderer, ctypes.byref(frect))
+
+        def _sdl_render_draw_rect(
+            renderer: ctypes.c_void_p,
+            rect: _sdl3.SDL_Rect,
+        ) -> bool:
+            frect = _as_frect(rect)
+            return _sdl3.SDL_RenderRect(renderer, ctypes.byref(frect))
+
+        def _sdl_render_draw_line(
+            renderer: ctypes.c_void_p,
+            x1: int,
+            y1: int,
+            x2: int,
+            y2: int,
+        ) -> bool:
+            return _sdl3.SDL_RenderLine(
+                renderer,
+                float(x1),
+                float(y1),
+                float(x2),
+                float(y2),
+            )
+
+        def _sdl_render_draw_point(renderer: ctypes.c_void_p, x: int, y: int) -> bool:
+            return _sdl3.SDL_RenderPoint(renderer, float(x), float(y))
+
+        def _sdl_init(flags: int) -> int:
+            # Preserve SDL2-style: 0 success, non-zero failure.
+            return 0 if _sdl3.SDL_Init(flags) else -1
+
+        sdl2.SDL_CreateWindow = _sdl_create_window
+        sdl2.SDL_CreateRenderer = _sdl_create_renderer
+        sdl2.SDL_FreeCursor = _sdl3.SDL_DestroyCursor
+        sdl2.SDL_FreeSurface = _sdl3.SDL_DestroySurface
+        sdl2.SDL_GetRendererOutputSize = _sdl_get_renderer_output_size
+        sdl2.SDL_GetMouseState = _sdl_get_mouse_state
+        sdl2.SDL_RenderCopy = _sdl_render_copy
+        sdl2.SDL_RenderFillRect = _sdl_render_fill_rect
+        sdl2.SDL_RenderDrawRect = _sdl_render_draw_rect
+        sdl2.SDL_RenderDrawLine = _sdl_render_draw_line
+        sdl2.SDL_RenderDrawPoint = _sdl_render_draw_point
+        sdl2.SDL_Init = _sdl_init
+
+    class _TTFCompat:
+        @staticmethod
+        def TTF_Init() -> int:
+            return 0 if _sdl3.TTF_Init() else -1
+
+        TTF_Quit = staticmethod(_sdl3.TTF_Quit)
+        TTF_OpenFont = staticmethod(_sdl3.TTF_OpenFont)
+        TTF_CloseFont = staticmethod(_sdl3.TTF_CloseFont)
+
+        @staticmethod
+        def TTF_RenderUTF8_Blended(
+            font: ctypes.c_void_p,
+            text: bytes,
+            color: _sdl3.SDL_Color,
+        ) -> ctypes.c_void_p:
+            return _sdl3.TTF_RenderText_Blended(font, text, len(text), color)
+
+    _install_sdl3_compat_shims()
+    sdlttf = _TTFCompat()
     SDL_IMPORT_ERROR = None
 
 WINDOW_WIDTH = 1400
