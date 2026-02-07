@@ -68,7 +68,6 @@ jobs:
         shell: pwsh
         run: |
           @'
-          import io
           import json
           import re
           import urllib.request
@@ -78,22 +77,33 @@ jobs:
           DEST = Path("third_party_sdl")
           DEST.mkdir(parents=True, exist_ok=True)
 
-          def download_release_asset(repo: str, pattern: str) -> Path:
-              api = f"https://api.github.com/repos/{repo}/releases/latest"
+          def download_release_asset(
+              repo: str,
+              pattern: str,
+              tag_pattern: str,
+          ) -> Path:
+              api = f"https://api.github.com/repos/{repo}/releases?per_page=30"
               with urllib.request.urlopen(api) as response:
-                  data = json.load(response)
-              assets = data.get("assets", [])
+                  releases = json.load(response)
+              tag_regex = re.compile(tag_pattern)
               regex = re.compile(pattern)
-              for asset in assets:
-                  name = asset.get("name", "")
-                  if regex.search(name):
-                      url = asset["browser_download_url"]
-                      out = DEST / name
-                      print(f"Downloading {name} from {url}")
-                      with urllib.request.urlopen(url) as src:
-                          out.write_bytes(src.read())
-                      return out
-              raise RuntimeError(f"No asset matching {pattern} for {repo}")
+              for release in releases:
+                  tag = release.get("tag_name", "")
+                  if not tag_regex.search(tag):
+                      continue
+                  assets = release.get("assets", [])
+                  for asset in assets:
+                      name = asset.get("name", "")
+                      if regex.search(name):
+                          url = asset["browser_download_url"]
+                          out = DEST / name
+                          print(f"Downloading {name} from {url} (tag {tag})")
+                          with urllib.request.urlopen(url) as src:
+                              out.write_bytes(src.read())
+                          return out
+              raise RuntimeError(
+                  f"No asset matching {pattern} with tag {tag_pattern} for {repo}"
+              )
 
           def extract_dlls(zip_path: Path) -> None:
               with zipfile.ZipFile(zip_path) as zf:
@@ -101,20 +111,34 @@ jobs:
                       low = member.lower()
                       if not low.endswith(".dll"):
                           continue
-                      if "arm64" not in low and "win32-arm64" not in low:
-                          continue
+                      # Architecture is already encoded in chosen asset filename.
                       target = DEST / Path(member).name
                       target.write_bytes(zf.read(member))
 
           # SDL2 runtime + SDL2_ttf runtime for Windows ARM64.
-          sdl_zip = download_release_asset("libsdl-org/SDL", r"win32-arm64\.zip$")
-          ttf_zip = download_release_asset("libsdl-org/SDL_ttf", r"win32-arm64\.zip$")
+          sdl_zip = download_release_asset(
+              "libsdl-org/SDL",
+              r"^SDL2-.*win32-arm64\.zip$",
+              r"release-2\.",
+          )
+          ttf_zip = download_release_asset(
+              "libsdl-org/SDL_ttf",
+              r"^SDL2_ttf-.*win32-arm64\.zip$",
+              r"release-2\.",
+          )
           extract_dlls(sdl_zip)
           extract_dlls(ttf_zip)
 
           dlls = sorted(DEST.glob("*.dll"))
           if not dlls:
               raise RuntimeError("SDL fallback download succeeded but no DLLs extracted.")
+          required = {"sdl2.dll", "sdl2_ttf.dll"}
+          found = {dll.name.lower() for dll in dlls}
+          missing_required = required - found
+          if missing_required:
+              raise RuntimeError(
+                  f"Missing required fallback DLLs: {sorted(missing_required)}"
+              )
           print("Fallback SDL DLLs:")
           for dll in dlls:
               print(f" - {dll}")
