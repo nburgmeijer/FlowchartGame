@@ -410,16 +410,16 @@ def apply_ui_scale(scale: float) -> None:
 def detect_macos_ui_scale(window: ctypes.c_void_p) -> float:
     if sys.platform != "darwin":
         return 1.0
-    window_scale = sdl2.SDL_GetWindowDisplayScale(window)
+    window_scale = _sdl3.SDL_GetWindowDisplayScale(window)
     if window_scale > 0:
         return float(window_scale)
-    pixel_density = sdl2.SDL_GetWindowPixelDensity(window)
+    pixel_density = _sdl3.SDL_GetWindowPixelDensity(window)
     if pixel_density > 0:
         return float(pixel_density)
-    display_id = sdl2.SDL_GetDisplayForWindow(window)
+    display_id = _sdl3.SDL_GetDisplayForWindow(window)
     if display_id == 0:
         return 1.0
-    scale = sdl2.SDL_GetDisplayContentScale(display_id)
+    scale = _sdl3.SDL_GetDisplayContentScale(display_id)
     if scale <= 0:
         return 1.0
     return float(scale)
@@ -432,12 +432,12 @@ def scaled_text_size(size: int) -> int:
 def initial_window_size() -> tuple[int, int]:
     width = WINDOW_WIDTH
     height = WINDOW_HEIGHT
-    display_id = sdl2.SDL_GetPrimaryDisplay()
+    display_id = _sdl3.SDL_GetPrimaryDisplay()
     if display_id == 0:
         return (width, height)
 
     usable = sdl2.SDL_Rect(0, 0, 0, 0)
-    if not sdl2.SDL_GetDisplayUsableBounds(display_id, ctypes.byref(usable)):
+    if not _sdl3.SDL_GetDisplayUsableBounds(display_id, ctypes.byref(usable)):
         return (width, height)
 
     # Keep a small margin from screen edges so title bar and dock/menu feel native.
@@ -566,7 +566,7 @@ class TextRenderer:
 
     def destroy(self) -> None:
         for entry in self.cache.values():
-            sdl2.SDL_DestroyTexture(entry.texture)
+            _sdl3.SDL_DestroyTexture(entry.texture)
         self.cache.clear()
 
         for font in self.fonts.values():
@@ -638,7 +638,7 @@ class TextRenderer:
         if not surface:
             raise RuntimeError(f"Failed to render text: {text}")
 
-        texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+        texture = _sdl3.SDL_CreateTextureFromSurface(self.renderer, surface)
         if not texture:
             sdl2.SDL_FreeSurface(surface)
             raise RuntimeError("Failed to create text texture.")
@@ -660,31 +660,31 @@ def main() -> None:
             "native SDL3/SDL3_ttf libraries are installed."
         ) from SDL_IMPORT_ERROR
 
-    if sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO) != 0:
+    if sdl2.SDL_Init(_sdl3.SDL_INIT_VIDEO) != 0:
         raise RuntimeError("SDL video initialization failed.")
 
     if sdlttf.TTF_Init() != 0:
-        sdl2.SDL_Quit()
+        _sdl3.SDL_Quit()
         raise RuntimeError("SDL_ttf initialization failed.")
 
     start_width, start_height = initial_window_size()
     window = sdl2.SDL_CreateWindow(
         b"Flow Diagram Learning Game",
-        sdl2.SDL_WINDOWPOS_CENTERED,
-        sdl2.SDL_WINDOWPOS_CENTERED,
+        _sdl3.SDL_WINDOWPOS_CENTERED,
+        _sdl3.SDL_WINDOWPOS_CENTERED,
         start_width,
         start_height,
         sdl2.SDL_WINDOW_SHOWN
-        | sdl2.SDL_WINDOW_RESIZABLE
-        | sdl2.SDL_WINDOW_HIGH_PIXEL_DENSITY,
+        | _sdl3.SDL_WINDOW_RESIZABLE
+        | _sdl3.SDL_WINDOW_HIGH_PIXEL_DENSITY,
     )
     if not window:
         sdlttf.TTF_Quit()
-        sdl2.SDL_Quit()
+        _sdl3.SDL_Quit()
         raise RuntimeError("Could not create SDL window.")
 
     apply_ui_scale(detect_macos_ui_scale(window))
-    sdl2.SDL_SetWindowMinimumSize(
+    _sdl3.SDL_SetWindowMinimumSize(
         window,
         min(MIN_WINDOW_WIDTH, start_width),
         min(MIN_WINDOW_HEIGHT, start_height),
@@ -696,17 +696,17 @@ def main() -> None:
         sdl2.SDL_RENDERER_ACCELERATED | sdl2.SDL_RENDERER_PRESENTVSYNC,
     )
     if not renderer:
-        sdl2.SDL_DestroyWindow(window)
+        _sdl3.SDL_DestroyWindow(window)
         sdlttf.TTF_Quit()
-        sdl2.SDL_Quit()
+        _sdl3.SDL_Quit()
         raise RuntimeError("Could not create SDL renderer.")
 
     font_path = find_font_path()
     if font_path is None:
-        sdl2.SDL_DestroyRenderer(renderer)
-        sdl2.SDL_DestroyWindow(window)
+        _sdl3.SDL_DestroyRenderer(renderer)
+        _sdl3.SDL_DestroyWindow(window)
         sdlttf.TTF_Quit()
-        sdl2.SDL_Quit()
+        _sdl3.SDL_Quit()
         raise RuntimeError(
             "No readable TTF font found. Install a system font like DejaVuSans."
         )
@@ -717,10 +717,10 @@ def main() -> None:
         run_loop(renderer=renderer, text=text)
     finally:
         text.destroy()
-        sdl2.SDL_DestroyRenderer(renderer)
-        sdl2.SDL_DestroyWindow(window)
+        _sdl3.SDL_DestroyRenderer(renderer)
+        _sdl3.SDL_DestroyWindow(window)
         sdlttf.TTF_Quit()
-        sdl2.SDL_Quit()
+        _sdl3.SDL_Quit()
 
 
 def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
@@ -735,11 +735,11 @@ def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
         f"platform={sys.platform}",
         SUBTEXT_COLOR,
     )
-    arrow_cursor = sdl2.SDL_CreateSystemCursor(sdl2.SDL_SYSTEM_CURSOR_ARROW)
-    hand_cursor = sdl2.SDL_CreateSystemCursor(sdl2.SDL_SYSTEM_CURSOR_HAND)
+    arrow_cursor = _sdl3.SDL_CreateSystemCursor(sdl2.SDL_SYSTEM_CURSOR_ARROW)
+    hand_cursor = _sdl3.SDL_CreateSystemCursor(sdl2.SDL_SYSTEM_CURSOR_HAND)
 
     if arrow_cursor:
-        sdl2.SDL_SetCursor(arrow_cursor)
+        _sdl3.SDL_SetCursor(arrow_cursor)
 
     running = True
     event = sdl2.SDL_Event()
@@ -747,7 +747,7 @@ def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
     try:
         while running:
             update_layout_size(renderer)
-            while sdl2.SDL_PollEvent(ctypes.byref(event)):
+            while _sdl3.SDL_PollEvent(ctypes.byref(event)):
                 event_type = event.type
 
                 if event_type == sdl2.SDL_QUIT:
@@ -808,9 +808,9 @@ def update_cursor_icon(
         y=ry,
     )
     if is_selectable and hand_cursor:
-        sdl2.SDL_SetCursor(hand_cursor)
+        _sdl3.SDL_SetCursor(hand_cursor)
     elif arrow_cursor:
-        sdl2.SDL_SetCursor(arrow_cursor)
+        _sdl3.SDL_SetCursor(arrow_cursor)
 
 
 def update_layout_size(renderer: ctypes.c_void_p) -> None:
@@ -838,7 +838,7 @@ def window_to_render_coords(
 ) -> tuple[int, int]:
     fx = ctypes.c_float(0.0)
     fy = ctypes.c_float(0.0)
-    ok = sdl2.SDL_RenderCoordinatesFromWindow(
+    ok = _sdl3.SDL_RenderCoordinatesFromWindow(
         renderer,
         float(x),
         float(y),
@@ -1567,7 +1567,7 @@ def draw_frame(
     builder: BuilderState,
 ) -> None:
     set_color(renderer, BG_COLOR)
-    sdl2.SDL_RenderClear(renderer)
+    _sdl3.SDL_RenderClear(renderer)
 
     draw_grid(renderer=renderer)
     draw_sidebar(renderer=renderer)
@@ -1575,7 +1575,7 @@ def draw_frame(
 
     if game.is_completed() and builder.modal is None:
         draw_complete_screen(renderer=renderer, text=text, game=game)
-        sdl2.SDL_RenderPresent(renderer)
+        _sdl3.SDL_RenderPresent(renderer)
         return
 
     stage = game.current_stage() if not game.is_completed() else None
@@ -1603,7 +1603,7 @@ def draw_frame(
     if builder.modal is not None:
         draw_validation_modal(renderer=renderer, text=text, modal=builder.modal)
 
-    sdl2.SDL_RenderPresent(renderer)
+    _sdl3.SDL_RenderPresent(renderer)
 
 
 def handle_modal_action(
@@ -2303,7 +2303,7 @@ def draw_complete_screen(
     game: FlowLearningGame,
 ) -> None:
     set_color(renderer, BG_COLOR)
-    sdl2.SDL_RenderClear(renderer)
+    _sdl3.SDL_RenderClear(renderer)
 
     width = current_width()
     height = current_height()
@@ -3467,7 +3467,7 @@ def point_in_diamond(x: int, y: int, rect: sdl2.SDL_Rect) -> bool:
 
 
 def set_color(renderer: ctypes.c_void_p, color: tuple[int, int, int, int]) -> None:
-    sdl2.SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], color[3])
+    _sdl3.SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], color[3])
 
 
 def find_font_path() -> str | None:
