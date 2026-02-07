@@ -35,6 +35,7 @@ jobs:
           import importlib.util
           from pathlib import Path
 
+          sdl2dll_count = 0
           for module in ("sdl2", "sdl2dll"):
               spec = importlib.util.find_spec(module)
               if spec is None:
@@ -47,6 +48,53 @@ jobs:
               print(f"{module}: dll_count={len(dlls)}")
               for dll in dlls[:10]:
                   print(f"  - {dll}")
+              if module == "sdl2dll":
+                  sdl2dll_count = len(dlls)
+
+          if sdl2dll_count == 0:
+              raise SystemExit(
+                  "pysdl2-dll is installed but contains no DLL payload on this runner."
+              )
+          '@ | python -
+
+      - name: Stage SDL DLLs for packaging
+        shell: pwsh
+        run: |
+          @'
+          import importlib.util
+          import shutil
+          from pathlib import Path
+
+          dest = Path("third_party_sdl")
+          dest.mkdir(parents=True, exist_ok=True)
+
+          def collect_from_module(module_name: str) -> list[Path]:
+              spec = importlib.util.find_spec(module_name)
+              if spec is None:
+                  return []
+              roots = list(spec.submodule_search_locations or [])
+              dlls = []
+              for root in roots:
+                  dlls.extend(Path(root).rglob("*.dll"))
+              return dlls
+
+          dlls = collect_from_module("sdl2dll") + collect_from_module("sdl2")
+          by_name = {}
+          for dll in dlls:
+              key = dll.name.lower()
+              if key not in by_name:
+                  by_name[key] = dll
+
+          required = ("sdl2.dll", "sdl2_ttf.dll")
+          missing = [name for name in required if name not in by_name]
+          if missing:
+              raise SystemExit(f"Missing required SDL DLLs from pip payload: {missing}")
+
+          for name in required:
+              src = by_name[name]
+              dst = dest / src.name
+              shutil.copy2(src, dst)
+              print(f"Staged {src} -> {dst}")
           '@ | python -
 
       - name: Create launcher script
@@ -73,6 +121,7 @@ jobs:
             --collect-all sdl2dll `
             --hidden-import sdl2.ext `
             --hidden-import sdl2.sdlttf `
+            --add-binary "third_party_sdl/*.dll;." `
             launcher.py
 
       - name: Install WiX toolset
