@@ -155,16 +155,6 @@ else:
         sdl2.SDL_WINDOW_SHOWN = 0
         sdl2.SDL_RENDERER_ACCELERATED = 0
         sdl2.SDL_RENDERER_PRESENTVSYNC = 0
-        sdl2.SDL_SYSTEM_CURSOR_ARROW = _sdl3.SDL_SYSTEM_CURSOR_DEFAULT
-        sdl2.SDL_SYSTEM_CURSOR_HAND = _sdl3.SDL_SYSTEM_CURSOR_POINTER
-        sdl2.SDL_QUIT = _sdl3.SDL_EVENT_QUIT
-        sdl2.SDL_KEYDOWN = _sdl3.SDL_EVENT_KEY_DOWN
-        sdl2.SDL_MOUSEBUTTONDOWN = _sdl3.SDL_EVENT_MOUSE_BUTTON_DOWN
-        sdl2.SDL_MOUSEBUTTONUP = _sdl3.SDL_EVENT_MOUSE_BUTTON_UP
-        sdl2.SDL_MOUSEMOTION = _sdl3.SDL_EVENT_MOUSE_MOTION
-        sdl2.SDLK_r = _sdl3.SDLK_R
-        sdl2.SDLK_x = _sdl3.SDLK_X
-
         def _as_frect(rect: _sdl3.SDL_Rect | None) -> _sdl3.SDL_FRect | None:
             if rect is None:
                 return None
@@ -436,7 +426,7 @@ def initial_window_size() -> tuple[int, int]:
     if display_id == 0:
         return (width, height)
 
-    usable = sdl2.SDL_Rect(0, 0, 0, 0)
+    usable = _sdl3.SDL_Rect(0, 0, 0, 0)
     if not _sdl3.SDL_GetDisplayUsableBounds(display_id, ctypes.byref(usable)):
         return (width, height)
 
@@ -465,9 +455,9 @@ class PlacedNode:
         )
 
     @property
-    def rect(self) -> sdl2.SDL_Rect:
+    def rect(self) -> _sdl3.SDL_Rect:
         width, height = self.size
-        return sdl2.SDL_Rect(self.x, self.y, width, height)
+        return _sdl3.SDL_Rect(self.x, self.y, width, height)
 
     @property
     def center(self) -> tuple[int, int]:
@@ -582,7 +572,7 @@ class TextRenderer:
         size: int = 18,
     ) -> None:
         entry = self._entry(text=text, size=size, color=color)
-        rect = sdl2.SDL_Rect(x, y, entry.width, entry.height)
+        rect = _sdl3.SDL_Rect(x, y, entry.width, entry.height)
         sdl2.SDL_RenderCopy(self.renderer, entry.texture, None, rect)
 
     def text_size(
@@ -633,7 +623,7 @@ class TextRenderer:
             return cached
 
         font = self._font(size)
-        sdl_color = sdl2.SDL_Color(*color)
+        sdl_color = _sdl3.SDL_Color(*color)
         surface = sdlttf.TTF_RenderUTF8_Blended(font, text.encode("utf-8"), sdl_color)
         if not surface:
             raise RuntimeError(f"Failed to render text: {text}")
@@ -735,14 +725,14 @@ def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
         f"platform={sys.platform}",
         SUBTEXT_COLOR,
     )
-    arrow_cursor = _sdl3.SDL_CreateSystemCursor(sdl2.SDL_SYSTEM_CURSOR_ARROW)
-    hand_cursor = _sdl3.SDL_CreateSystemCursor(sdl2.SDL_SYSTEM_CURSOR_HAND)
+    arrow_cursor = _sdl3.SDL_CreateSystemCursor(_sdl3.SDL_SYSTEM_CURSOR_DEFAULT)
+    hand_cursor = _sdl3.SDL_CreateSystemCursor(_sdl3.SDL_SYSTEM_CURSOR_POINTER)
 
     if arrow_cursor:
         _sdl3.SDL_SetCursor(arrow_cursor)
 
     running = True
-    event = sdl2.SDL_Event()
+    event = _sdl3.SDL_Event()
 
     try:
         while running:
@@ -750,24 +740,24 @@ def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
             while _sdl3.SDL_PollEvent(ctypes.byref(event)):
                 event_type = event.type
 
-                if event_type == sdl2.SDL_QUIT:
+                if event_type == _sdl3.SDL_EVENT_QUIT:
                     running = False
-                elif event_type == sdl2.SDL_KEYDOWN:
+                elif event_type == _sdl3.SDL_EVENT_KEY_DOWN:
                     running = handle_keydown(
                         game=game,
                         builder=builder,
                         key=event.key.key,
                     )
-                elif event_type == sdl2.SDL_MOUSEBUTTONDOWN:
+                elif event_type == _sdl3.SDL_EVENT_MOUSE_BUTTON_DOWN:
                     handle_mouse_down(
                         game=game,
                         builder=builder,
                         renderer=renderer,
                         event=event.button,
                     )
-                elif event_type == sdl2.SDL_MOUSEBUTTONUP:
+                elif event_type == _sdl3.SDL_EVENT_MOUSE_BUTTON_UP:
                     handle_mouse_up(builder=builder, event=event.button)
-                elif event_type == sdl2.SDL_MOUSEMOTION:
+                elif event_type == _sdl3.SDL_EVENT_MOUSE_MOTION:
                     handle_mouse_motion(
                         game=game,
                         builder=builder,
@@ -886,16 +876,16 @@ def is_hovering_selectable(
 
 
 def handle_keydown(game: FlowLearningGame, builder: BuilderState, key: int) -> bool:
-    if key == sdl2.SDLK_ESCAPE and builder.selected_template is not None:
+    if key == _sdl3.SDLK_ESCAPE and builder.selected_template is not None:
         cancel_template_placement(builder)
         builder.push_message("Block placement canceled.", SUBTEXT_COLOR)
         return True
 
-    if key == sdl2.SDLK_ESCAPE:
+    if key == _sdl3.SDLK_ESCAPE:
         return False
 
     if builder.modal is not None:
-        if key in (sdl2.SDLK_RETURN, sdl2.SDLK_SPACE):
+        if key in (_sdl3.SDLK_RETURN, _sdl3.SDLK_SPACE):
             default_action = (
                 builder.modal.buttons[0].action
                 if builder.modal.buttons
@@ -905,7 +895,7 @@ def handle_keydown(game: FlowLearningGame, builder: BuilderState, key: int) -> b
         return True
 
     if game.is_completed():
-        if key == sdl2.SDLK_r:
+        if key == _sdl3.SDLK_R:
             game.current_stage_index = 0
             game.badges.clear()
             game.attempts_by_stage.clear()
@@ -913,11 +903,11 @@ def handle_keydown(game: FlowLearningGame, builder: BuilderState, key: int) -> b
             builder.push_message("Game reset.", SUBTEXT_COLOR)
         return True
 
-    if key == sdl2.SDLK_RETURN:
+    if key == _sdl3.SDLK_RETURN:
         submit_stage(game=game, builder=builder)
         return True
 
-    if key == sdl2.SDLK_x:
+    if key == _sdl3.SDLK_X:
         if builder.edges:
             removed_index = len(builder.edges) - 1
             builder.edges.pop()
@@ -931,7 +921,7 @@ def handle_keydown(game: FlowLearningGame, builder: BuilderState, key: int) -> b
             builder.push_message("Last edge removed.", SUBTEXT_COLOR)
         return True
 
-    if key in (sdl2.SDLK_DELETE, sdl2.SDLK_BACKSPACE):
+    if key in (_sdl3.SDLK_DELETE, _sdl3.SDLK_BACKSPACE):
         if (
             builder.selected_edge_index is not None
             and 0 <= builder.selected_edge_index < len(builder.edges)
@@ -944,7 +934,7 @@ def handle_keydown(game: FlowLearningGame, builder: BuilderState, key: int) -> b
             remove_node(builder=builder, node_id=builder.selected_node)
         return True
 
-    if key == sdl2.SDLK_r:
+    if key == _sdl3.SDLK_R:
         builder.reset_for_stage()
         builder.push_message("Stage workspace cleared.", SUBTEXT_COLOR)
         return True
@@ -956,12 +946,12 @@ def handle_mouse_down(
     game: FlowLearningGame,
     builder: BuilderState,
     renderer: ctypes.c_void_p,
-    event: sdl2.SDL_MouseButtonEvent,
+    event: _sdl3.SDL_MouseButtonEvent,
 ) -> None:
     mouse_x, mouse_y = window_to_render_coords(renderer, int(event.x), int(event.y))
 
     if builder.modal is not None:
-        if event.button == sdl2.SDL_BUTTON_LEFT:
+        if event.button == _sdl3.SDL_BUTTON_LEFT:
             action = modal_action_at_point(modal=builder.modal, x=mouse_x, y=mouse_y)
             if action is not None:
                 handle_modal_action(game=game, builder=builder, action=action)
@@ -972,7 +962,7 @@ def handle_mouse_down(
 
     stage = game.current_stage()
 
-    if event.button == sdl2.SDL_BUTTON_LEFT:
+    if event.button == _sdl3.SDL_BUTTON_LEFT:
         if builder.drag_connector_source is not None:
             complete_drag_connector_if_possible(game=game, builder=builder)
             return
@@ -1056,7 +1046,7 @@ def handle_mouse_down(
         builder.hovered_connector = None
         builder.selected_edge_index = None
 
-    if event.button == sdl2.SDL_BUTTON_RIGHT:
+    if event.button == _sdl3.SDL_BUTTON_RIGHT:
         if builder.selected_template is not None:
             cancel_template_placement(builder)
             builder.push_message("Block placement canceled.", SUBTEXT_COLOR)
@@ -1066,8 +1056,8 @@ def handle_mouse_down(
             remove_node(builder=builder, node_id=hit_node)
 
 
-def handle_mouse_up(builder: BuilderState, event: sdl2.SDL_MouseButtonEvent) -> None:
-    if event.button == sdl2.SDL_BUTTON_LEFT:
+def handle_mouse_up(builder: BuilderState, event: _sdl3.SDL_MouseButtonEvent) -> None:
+    if event.button == _sdl3.SDL_BUTTON_LEFT:
         if builder.drag_node is not None and builder.drag_position_invalid:
             node = builder.placed_nodes.get(builder.drag_node)
             if node is not None and builder.drag_original_pos is not None:
@@ -1085,7 +1075,7 @@ def handle_mouse_motion(
     game: FlowLearningGame,
     builder: BuilderState,
     renderer: ctypes.c_void_p,
-    event: sdl2.SDL_MouseMotionEvent,
+    event: _sdl3.SDL_MouseMotionEvent,
 ) -> None:
     if game.is_completed():
         return
@@ -1637,17 +1627,17 @@ def modal_action_at_point(modal: ValidationModal, x: int, y: int) -> str | None:
     return None
 
 
-def modal_rect() -> sdl2.SDL_Rect:
+def modal_rect() -> _sdl3.SDL_Rect:
     width = 760
     height = 440
     x = (current_width() - width) // 2
     y = (current_height() - height) // 2
-    return sdl2.SDL_Rect(x, y, width, height)
+    return _sdl3.SDL_Rect(x, y, width, height)
 
 
 def modal_button_layout(
     modal: ValidationModal,
-) -> list[tuple[sdl2.SDL_Rect, ModalButton]]:
+) -> list[tuple[_sdl3.SDL_Rect, ModalButton]]:
     rect = modal_rect()
     spacing = 14
     button_height = 46
@@ -1658,10 +1648,10 @@ def modal_button_layout(
     start_x = rect.x + (rect.w - total_width) // 2
     y = rect.y + rect.h - 74
 
-    layout: list[tuple[sdl2.SDL_Rect, ModalButton]] = []
+    layout: list[tuple[_sdl3.SDL_Rect, ModalButton]] = []
     for idx, button in enumerate(modal.buttons):
         x = start_x + idx * (button_width + spacing)
-        button_rect = sdl2.SDL_Rect(x, y, button_width, button_height)
+        button_rect = _sdl3.SDL_Rect(x, y, button_width, button_height)
         layout.append((button_rect, button))
     return layout
 
@@ -1672,7 +1662,7 @@ def draw_validation_modal(
     modal: ValidationModal,
 ) -> None:
     set_color(renderer, (0, 0, 0, 170))
-    screen_rect = sdl2.SDL_Rect(0, 0, current_width(), current_height())
+    screen_rect = _sdl3.SDL_Rect(0, 0, current_width(), current_height())
     sdl2.SDL_RenderFillRect(renderer, screen_rect)
 
     rect = modal_rect()
@@ -1726,7 +1716,7 @@ def draw_grid(renderer: ctypes.c_void_p) -> None:
 
 
 def draw_sidebar(renderer: ctypes.c_void_p) -> None:
-    sidebar = sdl2.SDL_Rect(0, 0, SIDEBAR_WIDTH, current_height())
+    sidebar = _sdl3.SDL_Rect(0, 0, SIDEBAR_WIDTH, current_height())
     set_color(renderer, PANEL_COLOR)
     sdl2.SDL_RenderFillRect(renderer, sidebar)
     set_color(renderer, PANEL_BORDER)
@@ -1734,7 +1724,7 @@ def draw_sidebar(renderer: ctypes.c_void_p) -> None:
 
 
 def draw_header(renderer: ctypes.c_void_p) -> None:
-    header = sdl2.SDL_Rect(
+    header = _sdl3.SDL_Rect(
         SIDEBAR_WIDTH,
         0,
         current_width() - SIDEBAR_WIDTH,
@@ -1762,7 +1752,7 @@ def draw_stage_text(text: TextRenderer, stage: Stage) -> None:
     max_chars = max(20, task_width // max(7, task_size // 2 + 2))
     lines = wrap_text(text=task_text, max_chars=max_chars)
     task_end_y = task_y + len(lines) * (task_size + line_gap)
-    task_box = sdl2.SDL_Rect(
+    task_box = _sdl3.SDL_Rect(
         left,
         top + 84,
         task_width + 20,
@@ -1781,7 +1771,7 @@ def draw_stage_text(text: TextRenderer, stage: Stage) -> None:
 def draw_controls(text: TextRenderer, builder: BuilderState) -> None:
     x = 20
     y = 16
-    box = sdl2.SDL_Rect(16, 12, SIDEBAR_WIDTH - 32, 224)
+    box = _sdl3.SDL_Rect(16, 12, SIDEBAR_WIDTH - 32, 224)
     set_color(text.renderer, (12, 14, 20, 220))
     draw_rounded_rect_filled(renderer=text.renderer, rect=box, radius=8)
     set_color(text.renderer, PANEL_BORDER)
@@ -1849,7 +1839,7 @@ def draw_template_list(text: TextRenderer, stage: Stage, builder: BuilderState) 
         set_color(text.renderer, PANEL_BORDER)
         draw_rounded_rect_outline(renderer=text.renderer, rect=box, radius=8)
 
-        preview_rect = sdl2.SDL_Rect(left + 8, item_top + 10, 110, 64)
+        preview_rect = _sdl3.SDL_Rect(left + 8, item_top + 10, 110, 64)
         draw_template_preview(renderer=text.renderer, node=node, rect=preview_rect)
 
         text.draw(node.node_id, left + 130, item_top + 10, color=TEXT_COLOR, size=17)
@@ -1869,12 +1859,12 @@ def draw_template_list(text: TextRenderer, stage: Stage, builder: BuilderState) 
         )
 
 
-def template_item_rect(index: int) -> sdl2.SDL_Rect:
+def template_item_rect(index: int) -> _sdl3.SDL_Rect:
     left = 24
     top = HEADER_HEIGHT + 90
     item_height = 104
     item_top = top + index * item_height
-    return sdl2.SDL_Rect(left - 4, item_top - 4, SIDEBAR_WIDTH - 36, item_height - 8)
+    return _sdl3.SDL_Rect(left - 4, item_top - 4, SIDEBAR_WIDTH - 36, item_height - 8)
 
 
 def draw_swimlanes(renderer: ctypes.c_void_p, text: TextRenderer, stage: Stage) -> None:
@@ -1882,7 +1872,7 @@ def draw_swimlanes(renderer: ctypes.c_void_p, text: TextRenderer, stage: Stage) 
     lane_height = rect.h // len(stage.lanes)
 
     for index, lane in enumerate(stage.lanes):
-        lane_rect = sdl2.SDL_Rect(
+        lane_rect = _sdl3.SDL_Rect(
             rect.x,
             rect.y + index * lane_height,
             rect.w,
@@ -1925,7 +1915,7 @@ def draw_nodes(
             draw_rounded_rect_outline(renderer=renderer, rect=rect, radius=10)
 
         if builder.selected_node == placed.template.node_id:
-            focus_rect = sdl2.SDL_Rect(rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4)
+            focus_rect = _sdl3.SDL_Rect(rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4)
             set_color(renderer, HANDLE_COLOR)
             if placed.template.block_type.value == "decision":
                 draw_diamond_outline(renderer=renderer, rect=focus_rect)
@@ -1943,7 +1933,7 @@ def draw_nodes(
 def draw_centered_label_in_rect(
     text_renderer: TextRenderer,
     label: str,
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
     color: tuple[int, int, int, int],
 ) -> None:
     padding_x = 10
@@ -2235,7 +2225,7 @@ def draw_messages(text: TextRenderer, builder: BuilderState) -> None:
     visible = builder.messages[-MAX_VISIBLE_MESSAGES:]
     box_height = MAX_VISIBLE_MESSAGES * 26 + 14
     box_top = bottom - box_height - 4
-    box = sdl2.SDL_Rect(left - 10, box_top, current_width() - left - 24, box_height)
+    box = _sdl3.SDL_Rect(left - 10, box_top, current_width() - left - 24, box_height)
     set_color(text.renderer, (12, 14, 20, 220))
     sdl2.SDL_RenderFillRect(text.renderer, box)
     set_color(text.renderer, PANEL_BORDER)
@@ -2249,16 +2239,16 @@ def draw_messages(text: TextRenderer, builder: BuilderState) -> None:
 def draw_template_preview(
     renderer: ctypes.c_void_p,
     node: DiagramNode,
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
 ) -> None:
     set_color(renderer, NODE_FILL)
     if node.block_type.value == "decision":
-        inset = sdl2.SDL_Rect(rect.x + 8, rect.y + 2, rect.w - 16, rect.h - 4)
+        inset = _sdl3.SDL_Rect(rect.x + 8, rect.y + 2, rect.w - 16, rect.h - 4)
         draw_diamond_filled(renderer=renderer, rect=inset)
         set_color(renderer, NODE_BORDER)
         draw_diamond_outline(renderer=renderer, rect=inset)
     else:
-        inset = sdl2.SDL_Rect(rect.x + 4, rect.y + 8, rect.w - 8, rect.h - 16)
+        inset = _sdl3.SDL_Rect(rect.x + 4, rect.y + 8, rect.w - 8, rect.h - 16)
         draw_rounded_rect_filled(renderer=renderer, rect=inset, radius=8)
         set_color(renderer, NODE_BORDER)
         draw_rounded_rect_outline(renderer=renderer, rect=inset, radius=8)
@@ -2367,7 +2357,7 @@ def draw_arrow_head(
         sdl2.SDL_RenderDrawLine(renderer, tx - span, y, tx + span, y)
 
 
-def draw_diamond_outline(renderer: ctypes.c_void_p, rect: sdl2.SDL_Rect) -> None:
+def draw_diamond_outline(renderer: ctypes.c_void_p, rect: _sdl3.SDL_Rect) -> None:
     cx = rect.x + rect.w // 2
     cy = rect.y + rect.h // 2
     top = (cx, rect.y)
@@ -2381,7 +2371,7 @@ def draw_diamond_outline(renderer: ctypes.c_void_p, rect: sdl2.SDL_Rect) -> None
     sdl2.SDL_RenderDrawLine(renderer, left[0], left[1], top[0], top[1])
 
 
-def draw_diamond_filled(renderer: ctypes.c_void_p, rect: sdl2.SDL_Rect) -> None:
+def draw_diamond_filled(renderer: ctypes.c_void_p, rect: _sdl3.SDL_Rect) -> None:
     cx = rect.x + rect.w // 2
     cy = rect.y + rect.h // 2
     half_w = rect.w // 2
@@ -2395,11 +2385,11 @@ def draw_diamond_filled(renderer: ctypes.c_void_p, rect: sdl2.SDL_Rect) -> None:
 
 def draw_rounded_rect_filled(
     renderer: ctypes.c_void_p,
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
     radius: int,
 ) -> None:
     radius = max(1, min(radius, rect.w // 2, rect.h // 2))
-    center = sdl2.SDL_Rect(rect.x + radius, rect.y, rect.w - (2 * radius), rect.h)
+    center = _sdl3.SDL_Rect(rect.x + radius, rect.y, rect.w - (2 * radius), rect.h)
     sdl2.SDL_RenderFillRect(renderer, center)
 
     for dy in range(radius):
@@ -2414,7 +2404,7 @@ def draw_rounded_rect_filled(
 
 def draw_rounded_rect_outline(
     renderer: ctypes.c_void_p,
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
     radius: int,
 ) -> None:
     radius = max(1, min(radius, rect.w // 2, rect.h // 2))
@@ -2852,7 +2842,7 @@ def has_min_block_spacing(
     return True
 
 
-def respects_block_clearance(a: sdl2.SDL_Rect, b: sdl2.SDL_Rect) -> bool:
+def respects_block_clearance(a: _sdl3.SDL_Rect, b: _sdl3.SDL_Rect) -> bool:
     gap_x = max(a.x - (b.x + b.w), b.x - (a.x + a.w), 0)
     gap_y = max(a.y - (b.y + b.h), b.y - (a.y + a.h), 0)
 
@@ -2973,7 +2963,7 @@ def find_orthogonal_path(
     start: tuple[int, int],
     end: tuple[int, int],
     blocked: set[tuple[int, int]],
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
     occupied_points: set[tuple[int, int]],
     occupied_segments: set[tuple[tuple[int, int], tuple[int, int]]],
     required_pre_end: set[tuple[int, int]] | None = None,
@@ -3011,7 +3001,7 @@ def find_orthogonal_path_single_pass(
     start: tuple[int, int],
     end: tuple[int, int],
     blocked: set[tuple[int, int]],
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
     occupied_points: set[tuple[int, int]],
     occupied_segments: set[tuple[tuple[int, int], tuple[int, int]]],
     required_pre_end: set[tuple[int, int]] | None,
@@ -3123,7 +3113,7 @@ def nearest_blocked_manhattan_distance(
 def reconstruct_path_with_direction(
     came_from: dict[tuple[int, int, int], tuple[int, int, int]],
     current: tuple[int, int, int],
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
 ) -> list[tuple[int, int]]:
     path = [current]
     while current in came_from:
@@ -3148,7 +3138,7 @@ def path_efficiency_score(path: list[tuple[int, int]]) -> tuple[int, int]:
 def path_clearance_metrics(
     path: list[tuple[int, int]],
     blocked: set[tuple[int, int]],
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
 ) -> tuple[int, int]:
     if not path:
         return (0, 0)
@@ -3175,7 +3165,7 @@ def path_clearance_metrics(
 
 def endpoint_approach_penalty(
     path: list[tuple[int, int]],
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
     end_cell: tuple[int, int],
     tx: int,
     ty: int,
@@ -3236,7 +3226,7 @@ def extend_point_by_anchor(
     point: tuple[int, int],
     anchor_idx: int,
     distance: int,
-    rect: sdl2.SDL_Rect,
+    rect: _sdl3.SDL_Rect,
     snap: bool = True,
 ) -> tuple[int, int]:
     dx, dy = anchor_direction(anchor_idx)
@@ -3412,15 +3402,15 @@ def clamp_node_position(
     return (center_x - half_w, center_y - half_h)
 
 
-def lane_from_position(stage: Stage, y: int, rect: sdl2.SDL_Rect) -> str:
+def lane_from_position(stage: Stage, y: int, rect: _sdl3.SDL_Rect) -> str:
     lane_height = rect.h / len(stage.lanes)
     index = int((y - rect.y) / lane_height)
     index = max(0, min(index, len(stage.lanes) - 1))
     return stage.lanes[index]
 
 
-def canvas_rect() -> sdl2.SDL_Rect:
-    return sdl2.SDL_Rect(
+def canvas_rect() -> _sdl3.SDL_Rect:
+    return _sdl3.SDL_Rect(
         SIDEBAR_WIDTH + CANVAS_MARGIN,
         HEADER_HEIGHT + CANVAS_MARGIN,
         current_width() - SIDEBAR_WIDTH - (2 * CANVAS_MARGIN),
@@ -3428,12 +3418,12 @@ def canvas_rect() -> sdl2.SDL_Rect:
     )
 
 
-def snap_point_to_grid(x: int, y: int, rect: sdl2.SDL_Rect) -> tuple[int, int]:
+def snap_point_to_grid(x: int, y: int, rect: _sdl3.SDL_Rect) -> tuple[int, int]:
     gx, gy = grid_from_pixel(x, y, rect)
     return pixel_from_grid(gx, gy, rect)
 
 
-def grid_from_pixel(x: int, y: int, rect: sdl2.SDL_Rect) -> tuple[int, int]:
+def grid_from_pixel(x: int, y: int, rect: _sdl3.SDL_Rect) -> tuple[int, int]:
     gx = round((x - rect.x) / GRID_SIZE)
     gy = round((y - rect.y) / GRID_SIZE)
     max_gx = rect.w // GRID_SIZE
@@ -3444,19 +3434,19 @@ def grid_from_pixel(x: int, y: int, rect: sdl2.SDL_Rect) -> tuple[int, int]:
     )
 
 
-def pixel_from_grid(gx: int, gy: int, rect: sdl2.SDL_Rect) -> tuple[int, int]:
+def pixel_from_grid(gx: int, gy: int, rect: _sdl3.SDL_Rect) -> tuple[int, int]:
     return (rect.x + gx * GRID_SIZE, rect.y + gy * GRID_SIZE)
 
 
-def in_grid_bounds(gx: int, gy: int, rect: "sdl2.SDL_Rect") -> bool:
+def in_grid_bounds(gx: int, gy: int, rect: "_sdl3.SDL_Rect") -> bool:
     return 0 <= gx <= rect.w // GRID_SIZE and 0 <= gy <= rect.h // GRID_SIZE
 
 
-def point_in_rect(x: int, y: int, rect: sdl2.SDL_Rect) -> bool:
+def point_in_rect(x: int, y: int, rect: _sdl3.SDL_Rect) -> bool:
     return rect.x <= x <= rect.x + rect.w and rect.y <= y <= rect.y + rect.h
 
 
-def point_in_diamond(x: int, y: int, rect: sdl2.SDL_Rect) -> bool:
+def point_in_diamond(x: int, y: int, rect: _sdl3.SDL_Rect) -> bool:
     cx = rect.x + rect.w / 2
     cy = rect.y + rect.h / 2
     dx = abs(x - cx)
