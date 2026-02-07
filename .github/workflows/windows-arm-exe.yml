@@ -25,35 +25,41 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .
-          python -m pip install PySDL2 pysdl2-dll
+          python -m pip install PySDL3
           python -m pip install pyinstaller
 
-      - name: Verify SDL runtime payload from pip
+      - name: Prime SDL3 runtime payload
+        shell: pwsh
+        run: |
+          $env:SDL_DOC_GENERATOR = "0"
+          $env:SDL_CHECK_VERSION = "0"
+          $env:SDL_DOWNLOAD_BINARIES = "1"
+          python -c "import sdl3; print('sdl3 loaded')"
+
+      - name: Verify SDL3 runtime payload from pip
         shell: pwsh
         run: |
           @'
           import importlib.util
           from pathlib import Path
 
-          sdl2dll_count = 0
-          for module in ("sdl2", "sdl2dll"):
-              spec = importlib.util.find_spec(module)
-              if spec is None:
-                  raise SystemExit(f"Missing required module: {module}")
-              roots = list(spec.submodule_search_locations or [])
-              dlls = []
-              for root in roots:
-                  dlls.extend(Path(root).rglob("*.dll"))
-              print(f"{module}: roots={roots}")
-              print(f"{module}: dll_count={len(dlls)}")
-              for dll in dlls[:10]:
-                  print(f"  - {dll}")
-              if module == "sdl2dll":
-                  sdl2dll_count = len(dlls)
-
-          if sdl2dll_count == 0:
+          spec = importlib.util.find_spec("sdl3")
+          if spec is None:
+              raise SystemExit("Missing required module: sdl3")
+          roots = list(spec.submodule_search_locations or [])
+          if not roots:
+              raise SystemExit("Unable to resolve sdl3 package location.")
+          package_root = Path(roots[0])
+          bin_root = package_root / "bin"
+          dlls = sorted(bin_root.rglob("*.dll")) if bin_root.exists() else []
+          print(f"sdl3 package root: {package_root}")
+          print(f"sdl3 bin root: {bin_root}")
+          print(f"sdl3 dll_count: {len(dlls)}")
+          for dll in dlls[:20]:
+              print(f"  - {dll}")
+          if len(dlls) == 0:
               raise SystemExit(
-                  "pysdl2-dll is installed but contains no DLL payload on this runner."
+                  "PySDL3 is installed but contains no DLL payload on this runner."
               )
           '@ | python -
 
@@ -68,24 +74,22 @@ jobs:
           dest = Path("third_party_sdl")
           dest.mkdir(parents=True, exist_ok=True)
 
-          def collect_from_module(module_name: str) -> list[Path]:
-              spec = importlib.util.find_spec(module_name)
-              if spec is None:
-                  return []
-              roots = list(spec.submodule_search_locations or [])
-              dlls = []
-              for root in roots:
-                  dlls.extend(Path(root).rglob("*.dll"))
-              return dlls
-
-          dlls = collect_from_module("sdl2dll") + collect_from_module("sdl2")
+          spec = importlib.util.find_spec("sdl3")
+          if spec is None:
+              raise SystemExit("Missing required module: sdl3")
+          roots = list(spec.submodule_search_locations or [])
+          if not roots:
+              raise SystemExit("Unable to resolve sdl3 package location.")
+          package_root = Path(roots[0])
+          bin_root = package_root / "bin"
+          dlls = list(bin_root.rglob("*.dll"))
           by_name = {}
           for dll in dlls:
               key = dll.name.lower()
               if key not in by_name:
                   by_name[key] = dll
 
-          required = ("sdl2.dll", "sdl2_ttf.dll")
+          required = ("sdl3.dll", "sdl3_ttf.dll")
           missing = [name for name in required if name not in by_name]
           if missing:
               raise SystemExit(f"Missing required SDL DLLs from pip payload: {missing}")
@@ -117,10 +121,8 @@ jobs:
             --windowed `
             --name FlowchartGame-arm64 `
             --paths src `
-            --collect-all sdl2 `
-            --collect-all sdl2dll `
-            --hidden-import sdl2.ext `
-            --hidden-import sdl2.sdlttf `
+            --collect-all sdl3 `
+            --hidden-import sdl3.SDL_ttf `
             --add-binary "third_party_sdl/*.dll;." `
             launcher.py
 

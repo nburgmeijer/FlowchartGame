@@ -24,8 +24,16 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[sdl2]"
+          python -m pip install -e ".[sdl3]"
           python -m pip install pyinstaller
+
+      - name: Prime SDL3 runtime payload
+        shell: pwsh
+        run: |
+          $env:SDL_DOC_GENERATOR = "0"
+          $env:SDL_CHECK_VERSION = "0"
+          $env:SDL_DOWNLOAD_BINARIES = "1"
+          python -c "import sdl3; print('sdl3 loaded')"
 
       - name: Create launcher script
         shell: pwsh
@@ -46,6 +54,8 @@ jobs:
             --windowed `
             --name FlowchartGame `
             --paths src `
+            --collect-all sdl3 `
+            --hidden-import sdl3.SDL_ttf `
             launcher.py
 
       - name: Upload artifact

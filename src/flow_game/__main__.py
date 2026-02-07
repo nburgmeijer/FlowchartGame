@@ -5,7 +5,7 @@ def main() -> None:
     try:
         from .sdl2_game import main as sdl2_main
     except Exception as exc:  # pragma: no cover - runtime fallback
-        print(f"SDL2 mode unavailable: {exc}")
+        print(f"SDL mode unavailable: {exc}")
         print("Falling back to terminal mode.")
         cli_main()
         return

@@ -10,14 +10,12 @@ readme = "README.md"
 requires-python = ">=3.14"
 authors = [{ name = "Contributors" }]
 dependencies = [
-  "PySDL2>=0.9.16",
-  "pysdl2-dll>=2.30.10; platform_system == 'Windows'",
+  "PySDL3>=0.9.10b0",
 ]
 
 [project.optional-dependencies]
-sdl2 = [
-  "PySDL2>=0.9.16",
-  "pysdl2-dll>=2.30.10; platform_system == 'Windows'",
+sdl3 = [
+  "PySDL3>=0.9.10b0",
 ]
 dev = [
   "pytest>=8.0",

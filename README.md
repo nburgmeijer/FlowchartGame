@@ -1,6 +1,6 @@
 # Flow Diagram Learning Game
 
-A 2D SDL2 educational game for learning flow diagrams step by step.
+A 2D SDL3 educational game for learning flow diagrams step by step.
 
 You get written system tasks, place flowchart blocks on a canvas, connect them with arrows, and validate your solution. Correct diagrams unlock the next stage and award motivational badges.
 
@@ -16,18 +16,18 @@ You get written system tasks, place flowchart blocks on a canvas, connect them w
 ```bash
 python3.14 -m venv .venv
 source .venv/bin/activate
-make setup-sdl2
+make setup-sdl3
 make run
 ```
 
-If SDL2 is not available on your machine, the app falls back to the terminal version.
+If SDL3 is not available on your machine, the app falls back to the terminal version.
 
-If you get `No module named sdl2` or SDL2 load errors, install system libs:
+If you get `No module named sdl3` or SDL3 load errors, install system libs:
 
-- macOS (Homebrew): `brew install sdl2 sdl2_ttf`
-- Ubuntu/Debian: `sudo apt install libsdl2-2.0-0 libsdl2-ttf-2.0-0`
+- macOS (Homebrew): `brew install sdl3 sdl3_ttf`
+- Ubuntu/Debian: `sudo apt install libsdl3-0 libsdl3-ttf-0`
 
-## SDL2 Controls
+## SDL3 Controls
 
 - Left click a block in the sidebar, then left click canvas to place it
 - Left click and drag to move a placed block
@@ -42,8 +42,8 @@ If you get `No module named sdl2` or SDL2 load errors, install system libs:
 ## Commands
 
 - `make setup` - install project + dev dependencies.
-- `make setup-sdl2` - install project + dev + SDL2 extras.
-- `make run` - launch the SDL2 game.
+- `make setup-sdl3` - install project + dev + SDL3 extras.
+- `make run` - launch the SDL3 game.
 - `make test` - run tests.
 - `make lint` - run Ruff checks.
 - `make format` - auto-format imports/code with Ruff.

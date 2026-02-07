@@ -1,12 +1,12 @@
 PYTHON ?= python3.14
 
-.PHONY: setup setup-sdl2 run test lint format
+.PHONY: setup setup-sdl3 run test lint format
 
 setup:
 	$(PYTHON) -m pip install -e .[dev]
 
-setup-sdl2:
-	$(PYTHON) -m pip install -e .[dev,sdl2]
+setup-sdl3:
+	$(PYTHON) -m pip install -e .[dev,sdl3]
 
 run:
 	PYTHONPATH=src $(PYTHON) -m flow_game

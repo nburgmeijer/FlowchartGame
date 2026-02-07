@@ -20,7 +20,7 @@ def configure_local_sdl_dll_paths() -> None:
         if normalized not in candidates and os.path.isdir(normalized):
             candidates.append(normalized)
 
-    env_hint = os.environ.get("PYSDL2_DLL_PATH")
+    env_hint = os.environ.get("SDL_BINARY_PATH")
     if env_hint:
         for part in env_hint.split(os.pathsep):
             if part:
@@ -34,23 +34,23 @@ def configure_local_sdl_dll_paths() -> None:
     push(app_root)
     push(os.path.join(app_root, "lib"))
     push(os.path.join(app_root, "dll"))
-    push(os.path.join(app_root, "sdl2"))
-    push(os.path.join(app_root, "sdl2dll"))
+    push(os.path.join(app_root, "sdl3"))
+    push(os.path.join(app_root, "bin"))
 
     meipass = getattr(sys, "_MEIPASS", "")
     if meipass:
         push(meipass)
         push(os.path.join(meipass, "lib"))
         push(os.path.join(meipass, "dll"))
-        push(os.path.join(meipass, "sdl2"))
-        push(os.path.join(meipass, "sdl2dll"))
+        push(os.path.join(meipass, "sdl3"))
+        push(os.path.join(meipass, "bin"))
 
     runtime_candidates = gather_sdl_dll_dirs(candidates)
     if not runtime_candidates:
         return
 
-    # Point PySDL2 to app-local copies first.
-    os.environ["PYSDL2_DLL_PATH"] = os.pathsep.join(runtime_candidates)
+    # Point PySDL3 to app-local copies first.
+    os.environ["SDL_BINARY_PATH"] = runtime_candidates[0]
 
     # Also register directories with Windows loader for direct ctypes loading.
     current_path = os.environ.get("PATH", "")
@@ -75,7 +75,7 @@ def has_sdl_dll(path: str) -> bool:
     except OSError:
         return False
     lowered = [name.lower() for name in names]
-    return any(name.startswith("sdl2") and name.endswith(".dll") for name in lowered)
+    return any(name.startswith("sdl3") and name.endswith(".dll") for name in lowered)
 
 
 def gather_sdl_dll_dirs(base_dirs: list[str]) -> list[str]:
@@ -89,13 +89,12 @@ def gather_sdl_dll_dirs(base_dirs: list[str]) -> list[str]:
     for base in base_dirs:
         if has_sdl_dll(base):
             push(base)
-        # PyInstaller onefile often extracts SDL DLLs into nested folders
-        # such as "sdl2dll/dll", so discover real DLL parent dirs recursively.
+        # PyInstaller onefile often extracts SDL DLLs into nested folders.
         try:
             for root, _, files in os.walk(base):
                 lowered = [name.lower() for name in files]
                 if any(
-                    name.startswith("sdl2") and name.endswith(".dll")
+                    name.startswith("sdl3") and name.endswith(".dll")
                     for name in lowered
                 ):
                     push(root)
@@ -121,7 +120,7 @@ def walk_for_sdl_dll_dirs(root: str, max_depth: int) -> list[str]:
             dirs[:] = []
             continue
         lowered = [name.lower() for name in files]
-        if any(name.startswith("sdl2") and name.endswith(".dll") for name in lowered):
+        if any(name.startswith("sdl3") and name.endswith(".dll") for name in lowered):
             matches.append(current)
     return matches
 
@@ -129,8 +128,8 @@ def walk_for_sdl_dll_dirs(root: str, max_depth: int) -> list[str]:
 configure_local_sdl_dll_paths()
 
 try:
-    import sdl2
-    from sdl2 import sdlttf
+    from . import sdl_compat as sdl2
+    from .sdl_compat import sdlttf
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     sdl2 = None  # type: ignore[assignment]
     sdlttf = None  # type: ignore[assignment]
@@ -396,17 +395,17 @@ class TextRenderer:
 def main() -> None:
     if SDL_IMPORT_ERROR is not None:
         raise RuntimeError(
-            "SDL2 Python bindings are missing. Install with "
-            "`pip install -e .[dev]` (or `pip install PySDL2`) and ensure "
-            "native SDL2/SDL2_ttf libraries are installed."
+            "SDL3 Python bindings are missing. Install with "
+            "`pip install -e .[dev,sdl3]` (or `pip install PySDL3`) and ensure "
+            "native SDL3/SDL3_ttf libraries are installed."
         ) from SDL_IMPORT_ERROR
 
     if sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO) != 0:
-        raise RuntimeError("SDL2 video initialization failed.")
+        raise RuntimeError("SDL video initialization failed.")
 
     if sdlttf.TTF_Init() != 0:
         sdl2.SDL_Quit()
-        raise RuntimeError("SDL2_ttf initialization failed.")
+        raise RuntimeError("SDL_ttf initialization failed.")
 
     window = sdl2.SDL_CreateWindow(
         b"Flow Diagram Learning Game",
@@ -419,7 +418,7 @@ def main() -> None:
     if not window:
         sdlttf.TTF_Quit()
         sdl2.SDL_Quit()
-        raise RuntimeError("Could not create SDL2 window.")
+        raise RuntimeError("Could not create SDL window.")
     sdl2.SDL_SetWindowMinimumSize(window, MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     renderer = sdl2.SDL_CreateRenderer(
@@ -431,7 +430,7 @@ def main() -> None:
         sdl2.SDL_DestroyWindow(window)
         sdlttf.TTF_Quit()
         sdl2.SDL_Quit()
-        raise RuntimeError("Could not create SDL2 renderer.")
+        raise RuntimeError("Could not create SDL renderer.")
 
     font_path = find_font_path()
     if font_path is None:
@@ -479,7 +478,7 @@ def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
                     running = handle_keydown(
                         game=game,
                         builder=builder,
-                        key=event.key.keysym.sym,
+                        key=event.key.key,
                     )
                 elif event_type == sdl2.SDL_MOUSEBUTTONDOWN:
                     handle_mouse_down(game=game, builder=builder, event=event.button)
