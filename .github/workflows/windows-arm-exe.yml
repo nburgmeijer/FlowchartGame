@@ -107,9 +107,12 @@ jobs:
 
               <StandardDirectory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLFOLDER" Name="FlowchartGame">
-                  <Files Include="dist\FlowchartGame-arm64\**" />
                 </Directory>
               </StandardDirectory>
+
+              <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+                <Files Include="dist\FlowchartGame-arm64\**" />
+              </ComponentGroup>
 
               <DirectoryRef Id="ProgramMenuDir">
                 <Component Id="StartMenuShortcut" Guid="*">
@@ -131,6 +134,7 @@ jobs:
               </DirectoryRef>
 
               <Feature Id="MainFeature" Title="FlowchartGame" Level="1">
+                <ComponentGroupRef Id="AppFiles" />
                 <ComponentRef Id="StartMenuShortcut" />
               </Feature>
             </Package>
