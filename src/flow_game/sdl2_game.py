@@ -573,7 +573,7 @@ class TextRenderer:
     ) -> None:
         entry = self._entry(text=text, size=size, color=color)
         rect = _sdl3.SDL_Rect(x, y, entry.width, entry.height)
-        sdl2.SDL_RenderCopy(self.renderer, entry.texture, None, rect)
+        render_copy(self.renderer, entry.texture, None, rect)
 
     def text_size(
         self,
@@ -1663,11 +1663,11 @@ def draw_validation_modal(
 ) -> None:
     set_color(renderer, (0, 0, 0, 170))
     screen_rect = _sdl3.SDL_Rect(0, 0, current_width(), current_height())
-    sdl2.SDL_RenderFillRect(renderer, screen_rect)
+    render_fill_rect(renderer, screen_rect)
 
     rect = modal_rect()
     set_color(renderer, (13, 16, 22, 245))
-    sdl2.SDL_RenderFillRect(renderer, rect)
+    render_fill_rect(renderer, rect)
     set_color(renderer, modal.color)
     draw_rounded_rect_outline(renderer=renderer, rect=rect, radius=12)
 
@@ -1702,25 +1702,25 @@ def draw_grid(renderer: ctypes.c_void_p) -> None:
 
     for x in range(rect.x, rect.x + rect.w + 1, minor_step):
         set_color(renderer, GRID_MINOR)
-        sdl2.SDL_RenderDrawLine(renderer, x, rect.y, x, rect.y + rect.h)
+        render_draw_line(renderer, x, rect.y, x, rect.y + rect.h)
     for y in range(rect.y, rect.y + rect.h + 1, minor_step):
         set_color(renderer, GRID_MINOR)
-        sdl2.SDL_RenderDrawLine(renderer, rect.x, y, rect.x + rect.w, y)
+        render_draw_line(renderer, rect.x, y, rect.x + rect.w, y)
 
     for x in range(rect.x, rect.x + rect.w + 1, major_step):
         set_color(renderer, GRID_MAJOR)
-        sdl2.SDL_RenderDrawLine(renderer, x, rect.y, x, rect.y + rect.h)
+        render_draw_line(renderer, x, rect.y, x, rect.y + rect.h)
     for y in range(rect.y, rect.y + rect.h + 1, major_step):
         set_color(renderer, GRID_MAJOR)
-        sdl2.SDL_RenderDrawLine(renderer, rect.x, y, rect.x + rect.w, y)
+        render_draw_line(renderer, rect.x, y, rect.x + rect.w, y)
 
 
 def draw_sidebar(renderer: ctypes.c_void_p) -> None:
     sidebar = _sdl3.SDL_Rect(0, 0, SIDEBAR_WIDTH, current_height())
     set_color(renderer, PANEL_COLOR)
-    sdl2.SDL_RenderFillRect(renderer, sidebar)
+    render_fill_rect(renderer, sidebar)
     set_color(renderer, PANEL_BORDER)
-    sdl2.SDL_RenderDrawRect(renderer, sidebar)
+    render_draw_rect(renderer, sidebar)
 
 
 def draw_header(renderer: ctypes.c_void_p) -> None:
@@ -1731,9 +1731,9 @@ def draw_header(renderer: ctypes.c_void_p) -> None:
         HEADER_HEIGHT,
     )
     set_color(renderer, PANEL_COLOR)
-    sdl2.SDL_RenderFillRect(renderer, header)
+    render_fill_rect(renderer, header)
     set_color(renderer, PANEL_BORDER)
-    sdl2.SDL_RenderDrawRect(renderer, header)
+    render_draw_rect(renderer, header)
 
 
 def draw_stage_text(text: TextRenderer, stage: Stage) -> None:
@@ -1880,10 +1880,10 @@ def draw_swimlanes(renderer: ctypes.c_void_p, text: TextRenderer, stage: Stage) 
         )
         tint = (20, 25, 34, 255) if index % 2 == 0 else (16, 21, 30, 255)
         set_color(renderer, tint)
-        sdl2.SDL_RenderFillRect(renderer, lane_rect)
+        render_fill_rect(renderer, lane_rect)
 
         set_color(renderer, PANEL_BORDER)
-        sdl2.SDL_RenderDrawRect(renderer, lane_rect)
+        render_draw_rect(renderer, lane_rect)
         text.draw(lane, lane_rect.x + 10, lane_rect.y + 8, color=SUBTEXT_COLOR, size=16)
 
 
@@ -2071,10 +2071,10 @@ def draw_edges(
             tx, ty = path[idx + 1]
             if is_selected:
                 if sx == tx:
-                    sdl2.SDL_RenderDrawLine(renderer, sx + 1, sy, tx + 1, ty)
+                    render_draw_line(renderer, sx + 1, sy, tx + 1, ty)
                 elif sy == ty:
-                    sdl2.SDL_RenderDrawLine(renderer, sx, sy + 1, tx, ty + 1)
-            sdl2.SDL_RenderDrawLine(renderer, sx, sy, tx, ty)
+                    render_draw_line(renderer, sx, sy + 1, tx, ty + 1)
+            render_draw_line(renderer, sx, sy, tx, ty)
 
         sx, sy = path[-2]
         tx, ty = path[-1]
@@ -2123,7 +2123,7 @@ def draw_drag_connector_preview(
             start_outside[1] + source_dir[1] * dynamic_stem,
         )
         set_color(renderer, HANDLE_COLOR)
-        sdl2.SDL_RenderDrawLine(
+        render_draw_line(
             renderer,
             start_outside[0],
             start_outside[1],
@@ -2210,7 +2210,7 @@ def draw_drag_connector_preview(
     for idx in range(len(path) - 1):
         sx, sy = path[idx]
         tx, ty = path[idx + 1]
-        sdl2.SDL_RenderDrawLine(renderer, sx, sy, tx, ty)
+        render_draw_line(renderer, sx, sy, tx, ty)
 
     sx, sy = path[-2]
     tx, ty = path[-1]
@@ -2227,9 +2227,9 @@ def draw_messages(text: TextRenderer, builder: BuilderState) -> None:
     box_top = bottom - box_height - 4
     box = _sdl3.SDL_Rect(left - 10, box_top, current_width() - left - 24, box_height)
     set_color(text.renderer, (12, 14, 20, 220))
-    sdl2.SDL_RenderFillRect(text.renderer, box)
+    render_fill_rect(text.renderer, box)
     set_color(text.renderer, PANEL_BORDER)
-    sdl2.SDL_RenderDrawRect(text.renderer, box)
+    render_draw_rect(text.renderer, box)
 
     for index, (message, color) in enumerate(reversed(visible)):
         y = bottom - (index + 1) * 26
@@ -2347,14 +2347,14 @@ def draw_arrow_head(
         for offset in range(head_length):
             span = int((offset / max(1, head_length - 1)) * head_half_width)
             x = tx - (direction * offset)
-            sdl2.SDL_RenderDrawLine(renderer, x, ty - span, x, ty + span)
+            render_draw_line(renderer, x, ty - span, x, ty + span)
         return
 
     direction = 1 if dy > 0 else -1
     for offset in range(head_length):
         span = int((offset / max(1, head_length - 1)) * head_half_width)
         y = ty - (direction * offset)
-        sdl2.SDL_RenderDrawLine(renderer, tx - span, y, tx + span, y)
+        render_draw_line(renderer, tx - span, y, tx + span, y)
 
 
 def draw_diamond_outline(renderer: ctypes.c_void_p, rect: _sdl3.SDL_Rect) -> None:
@@ -2365,10 +2365,10 @@ def draw_diamond_outline(renderer: ctypes.c_void_p, rect: _sdl3.SDL_Rect) -> Non
     bottom = (cx, rect.y + rect.h)
     left = (rect.x, cy)
 
-    sdl2.SDL_RenderDrawLine(renderer, top[0], top[1], right[0], right[1])
-    sdl2.SDL_RenderDrawLine(renderer, right[0], right[1], bottom[0], bottom[1])
-    sdl2.SDL_RenderDrawLine(renderer, bottom[0], bottom[1], left[0], left[1])
-    sdl2.SDL_RenderDrawLine(renderer, left[0], left[1], top[0], top[1])
+    render_draw_line(renderer, top[0], top[1], right[0], right[1])
+    render_draw_line(renderer, right[0], right[1], bottom[0], bottom[1])
+    render_draw_line(renderer, bottom[0], bottom[1], left[0], left[1])
+    render_draw_line(renderer, left[0], left[1], top[0], top[1])
 
 
 def draw_diamond_filled(renderer: ctypes.c_void_p, rect: _sdl3.SDL_Rect) -> None:
@@ -2380,7 +2380,7 @@ def draw_diamond_filled(renderer: ctypes.c_void_p, rect: _sdl3.SDL_Rect) -> None
     for y in range(-half_h, half_h + 1):
         ratio = 1.0 - abs(y) / max(1, half_h)
         span = int(half_w * ratio)
-        sdl2.SDL_RenderDrawLine(renderer, cx - span, cy + y, cx + span, cy + y)
+        render_draw_line(renderer, cx - span, cy + y, cx + span, cy + y)
 
 
 def draw_rounded_rect_filled(
@@ -2390,7 +2390,7 @@ def draw_rounded_rect_filled(
 ) -> None:
     radius = max(1, min(radius, rect.w // 2, rect.h // 2))
     center = _sdl3.SDL_Rect(rect.x + radius, rect.y, rect.w - (2 * radius), rect.h)
-    sdl2.SDL_RenderFillRect(renderer, center)
+    render_fill_rect(renderer, center)
 
     for dy in range(radius):
         span = int((radius * radius - (radius - dy) * (radius - dy)) ** 0.5)
@@ -2398,8 +2398,8 @@ def draw_rounded_rect_filled(
         right = rect.x + rect.w - radius + span
         y_top = rect.y + dy
         y_bottom = rect.y + rect.h - 1 - dy
-        sdl2.SDL_RenderDrawLine(renderer, left, y_top, right, y_top)
-        sdl2.SDL_RenderDrawLine(renderer, left, y_bottom, right, y_bottom)
+        render_draw_line(renderer, left, y_top, right, y_top)
+        render_draw_line(renderer, left, y_bottom, right, y_bottom)
 
 
 def draw_rounded_rect_outline(
@@ -2413,10 +2413,10 @@ def draw_rounded_rect_outline(
     x2 = rect.x + rect.w - 1
     y2 = rect.y + rect.h - 1
 
-    sdl2.SDL_RenderDrawLine(renderer, x1 + radius, y1, x2 - radius, y1)
-    sdl2.SDL_RenderDrawLine(renderer, x1 + radius, y2, x2 - radius, y2)
-    sdl2.SDL_RenderDrawLine(renderer, x1, y1 + radius, x1, y2 - radius)
-    sdl2.SDL_RenderDrawLine(renderer, x2, y1 + radius, x2, y2 - radius)
+    render_draw_line(renderer, x1 + radius, y1, x2 - radius, y1)
+    render_draw_line(renderer, x1 + radius, y2, x2 - radius, y2)
+    render_draw_line(renderer, x1, y1 + radius, x1, y2 - radius)
+    render_draw_line(renderer, x2, y1 + radius, x2, y2 - radius)
 
     for dy in range(radius + 1):
         dx = int((radius * radius - (radius - dy) * (radius - dy)) ** 0.5)
@@ -2424,10 +2424,10 @@ def draw_rounded_rect_outline(
         rx = x2 - radius + dx
         ty = y1 + dy
         by = y2 - dy
-        sdl2.SDL_RenderDrawPoint(renderer, lx, ty)
-        sdl2.SDL_RenderDrawPoint(renderer, rx, ty)
-        sdl2.SDL_RenderDrawPoint(renderer, lx, by)
-        sdl2.SDL_RenderDrawPoint(renderer, rx, by)
+        render_draw_point(renderer, lx, ty)
+        render_draw_point(renderer, rx, ty)
+        render_draw_point(renderer, lx, by)
+        render_draw_point(renderer, rx, by)
 
 
 def draw_circle_filled(
@@ -2441,7 +2441,7 @@ def draw_circle_filled(
         if span_sq < 0:
             continue
         span = int(span_sq**0.5)
-        sdl2.SDL_RenderDrawLine(renderer, cx - span, cy + dy, cx + span, cy + dy)
+        render_draw_line(renderer, cx - span, cy + dy, cx + span, cy + dy)
 
 
 def draw_circle_outline(
@@ -2482,7 +2482,7 @@ def draw_circle_octants(
         (cx + x, cy - y),
     )
     for px, py in points:
-        sdl2.SDL_RenderDrawPoint(renderer, px, py)
+        render_draw_point(renderer, px, py)
 
 
 def route_path_between_points(
@@ -3458,6 +3458,47 @@ def point_in_diamond(x: int, y: int, rect: _sdl3.SDL_Rect) -> bool:
 
 def set_color(renderer: ctypes.c_void_p, color: tuple[int, int, int, int]) -> None:
     _sdl3.SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], color[3])
+
+
+def render_copy(
+    renderer: ctypes.c_void_p,
+    texture: ctypes.c_void_p,
+    src: _sdl3.SDL_Rect | None,
+    dst: _sdl3.SDL_Rect | None,
+) -> bool:
+    src_f = None
+    dst_f = None
+    if src is not None:
+        src_f = _sdl3.SDL_FRect(float(src.x), float(src.y), float(src.w), float(src.h))
+    if dst is not None:
+        dst_f = _sdl3.SDL_FRect(float(dst.x), float(dst.y), float(dst.w), float(dst.h))
+    src_p = ctypes.byref(src_f) if src_f is not None else None
+    dst_p = ctypes.byref(dst_f) if dst_f is not None else None
+    return _sdl3.SDL_RenderTexture(renderer, texture, src_p, dst_p)
+
+
+def render_fill_rect(renderer: ctypes.c_void_p, rect: _sdl3.SDL_Rect) -> bool:
+    frect = _sdl3.SDL_FRect(float(rect.x), float(rect.y), float(rect.w), float(rect.h))
+    return _sdl3.SDL_RenderFillRect(renderer, ctypes.byref(frect))
+
+
+def render_draw_rect(renderer: ctypes.c_void_p, rect: _sdl3.SDL_Rect) -> bool:
+    frect = _sdl3.SDL_FRect(float(rect.x), float(rect.y), float(rect.w), float(rect.h))
+    return _sdl3.SDL_RenderRect(renderer, ctypes.byref(frect))
+
+
+def render_draw_line(
+    renderer: ctypes.c_void_p,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+) -> bool:
+    return _sdl3.SDL_RenderLine(renderer, float(x1), float(y1), float(x2), float(y2))
+
+
+def render_draw_point(renderer: ctypes.c_void_p, x: int, y: int) -> bool:
+    return _sdl3.SDL_RenderPoint(renderer, float(x), float(y))
 
 
 def find_font_path() -> str | None:
