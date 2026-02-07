@@ -45,7 +45,7 @@ def configure_local_sdl_dll_paths() -> None:
         push(os.path.join(meipass, "sdl2"))
         push(os.path.join(meipass, "sdl2dll"))
 
-    runtime_candidates = [path for path in candidates if has_sdl_dll(path)]
+    runtime_candidates = gather_sdl_dll_dirs(candidates)
     if not runtime_candidates:
         return
 
@@ -76,6 +76,32 @@ def has_sdl_dll(path: str) -> bool:
         return False
     lowered = [name.lower() for name in names]
     return any(name.startswith("sdl2") and name.endswith(".dll") for name in lowered)
+
+
+def gather_sdl_dll_dirs(base_dirs: list[str]) -> list[str]:
+    found: list[str] = []
+
+    def push(path: str) -> None:
+        normalized = os.path.abspath(path)
+        if normalized not in found and os.path.isdir(normalized):
+            found.append(normalized)
+
+    for base in base_dirs:
+        if has_sdl_dll(base):
+            push(base)
+        # PyInstaller onefile often extracts SDL DLLs into nested folders
+        # such as "sdl2dll/dll", so discover real DLL parent dirs recursively.
+        try:
+            for root, _, files in os.walk(base):
+                lowered = [name.lower() for name in files]
+                if any(
+                    name.startswith("sdl2") and name.endswith(".dll")
+                    for name in lowered
+                ):
+                    push(root)
+        except OSError:
+            continue
+    return found
 
 
 configure_local_sdl_dll_paths()

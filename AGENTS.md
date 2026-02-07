@@ -48,3 +48,14 @@ PRs should include:
 
 ## Security & Configuration Tips
 Do not commit secrets or machine-specific files. Keep environment-specific settings in local `.env` files and provide `.env.example` only when needed.
+
+## Dependency Packaging Rule
+- Any new runtime dependency must be packaged for distribution builds, including GitHub Actions artifacts.
+- For Windows artifacts:
+  - Update `.github/workflows/windows-exe.yml` and `.github/workflows/windows-arm-exe.yml` so the dependency binaries/data are bundled.
+  - Do not rely on target machines to have dependency libraries preinstalled.
+- Any non-stdlib import that can be missing at runtime must use an import guard pattern:
+  - wrap import in `try/except ModuleNotFoundError`
+  - store the import error in a module-level variable
+  - provide a deterministic fallback behavior or a clear runtime error message
+- When adding a new dependency, update `pyproject.toml` and verify packaging changes in CI before merge.

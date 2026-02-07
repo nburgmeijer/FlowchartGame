@@ -48,6 +48,10 @@ jobs:
               print(f"{module}: dll_count={len(dlls)}")
               for dll in dlls[:10]:
                   print(f"  - {dll}")
+              if module == "sdl2dll" and len(dlls) == 0:
+                  raise SystemExit(
+                      "sdl2dll installed but contains no DLL payload for this runner."
+                  )
           if missing:
               raise SystemExit(f"Missing required modules: {missing}")
           '@ | python -
