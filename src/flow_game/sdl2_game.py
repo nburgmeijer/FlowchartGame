@@ -144,133 +144,9 @@ try:
 
     import sdl3 as _sdl3
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    sdl2 = None  # type: ignore[assignment]
     sdlttf = None  # type: ignore[assignment]
     SDL_IMPORT_ERROR: ModuleNotFoundError | None = exc
 else:
-    sdl2 = _sdl3
-
-    def _install_sdl3_compat_shims() -> None:
-        # SDL2-style names/flags used by this codebase.
-        sdl2.SDL_WINDOW_SHOWN = 0
-        sdl2.SDL_RENDERER_ACCELERATED = 0
-        sdl2.SDL_RENDERER_PRESENTVSYNC = 0
-        def _as_frect(rect: _sdl3.SDL_Rect | None) -> _sdl3.SDL_FRect | None:
-            if rect is None:
-                return None
-            return _sdl3.SDL_FRect(
-                float(rect.x),
-                float(rect.y),
-                float(rect.w),
-                float(rect.h),
-            )
-
-        def _sdl_create_window(
-            title: bytes,
-            x: int,
-            y: int,
-            w: int,
-            h: int,
-            flags: int,
-        ) -> ctypes.c_void_p:
-            window = _sdl3.SDL_CreateWindow(title, w, h, flags)
-            if (
-                window
-                and x != _sdl3.SDL_WINDOWPOS_CENTERED
-                and y != _sdl3.SDL_WINDOWPOS_CENTERED
-            ):
-                _sdl3.SDL_SetWindowPosition(window, x, y)
-            return window
-
-        def _sdl_create_renderer(
-            window: ctypes.c_void_p,
-            index: int,
-            flags: int,
-        ) -> ctypes.c_void_p:
-            del index, flags
-            return _sdl3.SDL_CreateRenderer(window, None)
-
-        def _sdl_get_renderer_output_size(
-            renderer: ctypes.c_void_p,
-            w: ctypes._Pointer[ctypes.c_int],
-            h: ctypes._Pointer[ctypes.c_int],
-        ) -> bool:
-            return _sdl3.SDL_GetCurrentRenderOutputSize(renderer, w, h)
-
-        def _sdl_get_mouse_state(
-            x: ctypes._Pointer[ctypes.c_int],
-            y: ctypes._Pointer[ctypes.c_int],
-        ) -> int:
-            fx = ctypes.c_float()
-            fy = ctypes.c_float()
-            buttons = _sdl3.SDL_GetMouseState(ctypes.byref(fx), ctypes.byref(fy))
-            x_ptr = ctypes.cast(x, ctypes.POINTER(ctypes.c_int))
-            y_ptr = ctypes.cast(y, ctypes.POINTER(ctypes.c_int))
-            x_ptr[0] = int(round(fx.value))
-            y_ptr[0] = int(round(fy.value))
-            return int(buttons)
-
-        def _sdl_render_copy(
-            renderer: ctypes.c_void_p,
-            texture: ctypes.c_void_p,
-            src: _sdl3.SDL_Rect | None,
-            dst: _sdl3.SDL_Rect | None,
-        ) -> bool:
-            src_f = _as_frect(src)
-            dst_f = _as_frect(dst)
-            src_p = ctypes.byref(src_f) if src_f is not None else None
-            dst_p = ctypes.byref(dst_f) if dst_f is not None else None
-            return _sdl3.SDL_RenderTexture(renderer, texture, src_p, dst_p)
-
-        def _sdl_render_fill_rect(
-            renderer: ctypes.c_void_p,
-            rect: _sdl3.SDL_Rect,
-        ) -> bool:
-            frect = _as_frect(rect)
-            return _sdl3.SDL_RenderFillRect(renderer, ctypes.byref(frect))
-
-        def _sdl_render_draw_rect(
-            renderer: ctypes.c_void_p,
-            rect: _sdl3.SDL_Rect,
-        ) -> bool:
-            frect = _as_frect(rect)
-            return _sdl3.SDL_RenderRect(renderer, ctypes.byref(frect))
-
-        def _sdl_render_draw_line(
-            renderer: ctypes.c_void_p,
-            x1: int,
-            y1: int,
-            x2: int,
-            y2: int,
-        ) -> bool:
-            return _sdl3.SDL_RenderLine(
-                renderer,
-                float(x1),
-                float(y1),
-                float(x2),
-                float(y2),
-            )
-
-        def _sdl_render_draw_point(renderer: ctypes.c_void_p, x: int, y: int) -> bool:
-            return _sdl3.SDL_RenderPoint(renderer, float(x), float(y))
-
-        def _sdl_init(flags: int) -> int:
-            # Preserve SDL2-style: 0 success, non-zero failure.
-            return 0 if _sdl3.SDL_Init(flags) else -1
-
-        sdl2.SDL_CreateWindow = _sdl_create_window
-        sdl2.SDL_CreateRenderer = _sdl_create_renderer
-        sdl2.SDL_FreeCursor = _sdl3.SDL_DestroyCursor
-        sdl2.SDL_FreeSurface = _sdl3.SDL_DestroySurface
-        sdl2.SDL_GetRendererOutputSize = _sdl_get_renderer_output_size
-        sdl2.SDL_GetMouseState = _sdl_get_mouse_state
-        sdl2.SDL_RenderCopy = _sdl_render_copy
-        sdl2.SDL_RenderFillRect = _sdl_render_fill_rect
-        sdl2.SDL_RenderDrawRect = _sdl_render_draw_rect
-        sdl2.SDL_RenderDrawLine = _sdl_render_draw_line
-        sdl2.SDL_RenderDrawPoint = _sdl_render_draw_point
-        sdl2.SDL_Init = _sdl_init
-
     class _TTFCompat:
         @staticmethod
         def TTF_Init() -> int:
@@ -288,7 +164,6 @@ else:
         ) -> ctypes.c_void_p:
             return _sdl3.TTF_RenderText_Blended(font, text, len(text), color)
 
-    _install_sdl3_compat_shims()
     sdlttf = _TTFCompat()
     SDL_IMPORT_ERROR = None
 
@@ -630,12 +505,12 @@ class TextRenderer:
 
         texture = _sdl3.SDL_CreateTextureFromSurface(self.renderer, surface)
         if not texture:
-            sdl2.SDL_FreeSurface(surface)
+            free_surface(surface)
             raise RuntimeError("Failed to create text texture.")
 
         width = surface.contents.w
         height = surface.contents.h
-        sdl2.SDL_FreeSurface(surface)
+        free_surface(surface)
 
         entry = TextCacheEntry(texture=texture, width=width, height=height)
         self.cache[key] = entry
@@ -650,7 +525,7 @@ def main() -> None:
             "native SDL3/SDL3_ttf libraries are installed."
         ) from SDL_IMPORT_ERROR
 
-    if sdl2.SDL_Init(_sdl3.SDL_INIT_VIDEO) != 0:
+    if sdl_init(_sdl3.SDL_INIT_VIDEO) != 0:
         raise RuntimeError("SDL video initialization failed.")
 
     if sdlttf.TTF_Init() != 0:
@@ -658,14 +533,13 @@ def main() -> None:
         raise RuntimeError("SDL_ttf initialization failed.")
 
     start_width, start_height = initial_window_size()
-    window = sdl2.SDL_CreateWindow(
+    window = create_window(
         b"Flow Diagram Learning Game",
         _sdl3.SDL_WINDOWPOS_CENTERED,
         _sdl3.SDL_WINDOWPOS_CENTERED,
         start_width,
         start_height,
-        sdl2.SDL_WINDOW_SHOWN
-        | _sdl3.SDL_WINDOW_RESIZABLE
+        _sdl3.SDL_WINDOW_RESIZABLE
         | _sdl3.SDL_WINDOW_HIGH_PIXEL_DENSITY,
     )
     if not window:
@@ -680,10 +554,10 @@ def main() -> None:
         min(MIN_WINDOW_HEIGHT, start_height),
     )
 
-    renderer = sdl2.SDL_CreateRenderer(
+    renderer = create_renderer(
         window,
         -1,
-        sdl2.SDL_RENDERER_ACCELERATED | sdl2.SDL_RENDERER_PRESENTVSYNC,
+        0,
     )
     if not renderer:
         _sdl3.SDL_DestroyWindow(window)
@@ -775,9 +649,9 @@ def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
             draw_frame(renderer=renderer, text=text, game=game, builder=builder)
     finally:
         if hand_cursor:
-            sdl2.SDL_FreeCursor(hand_cursor)
+            free_cursor(hand_cursor)
         if arrow_cursor:
-            sdl2.SDL_FreeCursor(arrow_cursor)
+            free_cursor(arrow_cursor)
 
 
 def update_cursor_icon(
@@ -789,7 +663,7 @@ def update_cursor_icon(
 ) -> None:
     mouse_x = ctypes.c_int(0)
     mouse_y = ctypes.c_int(0)
-    sdl2.SDL_GetMouseState(ctypes.byref(mouse_x), ctypes.byref(mouse_y))
+    get_mouse_state(ctypes.byref(mouse_x), ctypes.byref(mouse_y))
     rx, ry = window_to_render_coords(renderer, mouse_x.value, mouse_y.value)
     is_selectable = is_hovering_selectable(
         game=game,
@@ -807,7 +681,7 @@ def update_layout_size(renderer: ctypes.c_void_p) -> None:
     global VIEW_WIDTH, VIEW_HEIGHT
     width = ctypes.c_int(0)
     height = ctypes.c_int(0)
-    sdl2.SDL_GetRendererOutputSize(renderer, ctypes.byref(width), ctypes.byref(height))
+    get_renderer_output_size(renderer, ctypes.byref(width), ctypes.byref(height))
     if width.value > 0 and height.value > 0:
         VIEW_WIDTH = width.value
         VIEW_HEIGHT = height.value
@@ -3454,6 +3328,68 @@ def point_in_diamond(x: int, y: int, rect: _sdl3.SDL_Rect) -> bool:
     if rect.w == 0 or rect.h == 0:
         return False
     return (dx / (rect.w / 2)) + (dy / (rect.h / 2)) <= 1
+
+
+def sdl_init(flags: int) -> int:
+    # Preserve SDL2-style: 0 success, non-zero failure.
+    return 0 if _sdl3.SDL_Init(flags) else -1
+
+
+def create_window(
+    title: bytes,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    flags: int,
+) -> ctypes.c_void_p:
+    window = _sdl3.SDL_CreateWindow(title, w, h, flags)
+    if (
+        window
+        and x != _sdl3.SDL_WINDOWPOS_CENTERED
+        and y != _sdl3.SDL_WINDOWPOS_CENTERED
+    ):
+        _sdl3.SDL_SetWindowPosition(window, x, y)
+    return window
+
+
+def create_renderer(
+    window: ctypes.c_void_p,
+    index: int,
+    flags: int,
+) -> ctypes.c_void_p:
+    del index, flags
+    return _sdl3.SDL_CreateRenderer(window, None)
+
+
+def free_cursor(cursor: ctypes.c_void_p) -> None:
+    _sdl3.SDL_DestroyCursor(cursor)
+
+
+def free_surface(surface: ctypes.c_void_p) -> None:
+    _sdl3.SDL_DestroySurface(surface)
+
+
+def get_renderer_output_size(
+    renderer: ctypes.c_void_p,
+    w: ctypes._Pointer[ctypes.c_int],
+    h: ctypes._Pointer[ctypes.c_int],
+) -> bool:
+    return _sdl3.SDL_GetCurrentRenderOutputSize(renderer, w, h)
+
+
+def get_mouse_state(
+    x: ctypes._Pointer[ctypes.c_int],
+    y: ctypes._Pointer[ctypes.c_int],
+) -> int:
+    fx = ctypes.c_float()
+    fy = ctypes.c_float()
+    buttons = _sdl3.SDL_GetMouseState(ctypes.byref(fx), ctypes.byref(fy))
+    x_ptr = ctypes.cast(x, ctypes.POINTER(ctypes.c_int))
+    y_ptr = ctypes.cast(y, ctypes.POINTER(ctypes.c_int))
+    x_ptr[0] = int(round(fx.value))
+    y_ptr[0] = int(round(fy.value))
+    return int(buttons)
 
 
 def set_color(renderer: ctypes.c_void_p, color: tuple[int, int, int, int]) -> None:
