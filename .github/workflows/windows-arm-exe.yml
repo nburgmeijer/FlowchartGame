@@ -30,7 +30,7 @@ jobs:
       - name: Verify SDL runtime payload
         shell: pwsh
         run: |
-          python - << 'PY'
+          @'
           import importlib.util
           from pathlib import Path
 
@@ -50,7 +50,7 @@ jobs:
                   print(f"  - {dll}")
           if missing:
               raise SystemExit(f"Missing required modules: {missing}")
-          PY
+          '@ | python -
 
       - name: Create launcher script
         shell: pwsh
