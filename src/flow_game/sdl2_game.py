@@ -143,18 +143,32 @@ MIN_WINDOW_WIDTH = 1200
 MIN_WINDOW_HEIGHT = 760
 VIEW_WIDTH = WINDOW_WIDTH
 VIEW_HEIGHT = WINDOW_HEIGHT
-SIDEBAR_WIDTH = 390
-HEADER_HEIGHT = 170
-CANVAS_MARGIN = 20
-GRID_SIZE = 22
+
+BASE_SIDEBAR_WIDTH = 430
+BASE_HEADER_HEIGHT = 170
+BASE_CANVAS_MARGIN = 20
+BASE_GRID_SIZE = 22
+BASE_MAX_BLOCK_LABEL_SIZE = 22
+BASE_MIN_BLOCK_LABEL_SIZE = 12
+BASE_HANDLE_RADIUS = 4
+BASE_HANDLE_HIT_RADIUS = 14
+BASE_ARROW_HEAD_LENGTH = 10
+
+UI_SCALE = 1.0
+RAW_DISPLAY_SCALE = 1.0
+TEXT_SCALE = 1.0
+SIDEBAR_WIDTH = BASE_SIDEBAR_WIDTH
+HEADER_HEIGHT = BASE_HEADER_HEIGHT
+CANVAS_MARGIN = BASE_CANVAS_MARGIN
+GRID_SIZE = BASE_GRID_SIZE
 
 PROCESS_BLOCK_W_UNITS = 6
 PROCESS_BLOCK_H_UNITS = 3
 DECISION_BLOCK_W_UNITS = 6
 DECISION_BLOCK_H_UNITS = 4
 
-MAX_BLOCK_LABEL_SIZE = 20
-MIN_BLOCK_LABEL_SIZE = 10
+MAX_BLOCK_LABEL_SIZE = BASE_MAX_BLOCK_LABEL_SIZE
+MIN_BLOCK_LABEL_SIZE = BASE_MIN_BLOCK_LABEL_SIZE
 
 BG_COLOR = (11, 13, 17, 255)
 GRID_MINOR = (29, 34, 44, 255)
@@ -171,13 +185,14 @@ NODE_BORDER = (224, 228, 236, 255)
 EDGE_COLOR = (238, 241, 248, 255)
 HANDLE_COLOR = (60, 196, 255, 255)
 HANDLE_ACTIVE = (255, 175, 62, 255)
-HANDLE_RADIUS = 8
-HANDLE_HIT_RADIUS = 14
-ARROW_HEAD_LENGTH = 10
+HANDLE_RADIUS = BASE_HANDLE_RADIUS
+HANDLE_HIT_RADIUS = BASE_HANDLE_HIT_RADIUS
+ARROW_HEAD_LENGTH = BASE_ARROW_HEAD_LENGTH
 MIN_CONNECTOR_SEGMENT = ARROW_HEAD_LENGTH * 2
 MIN_START_STEM = GRID_SIZE // 2
 MIN_END_SEGMENT = GRID_SIZE // 2
 MIN_END_STUB_FALLBACK = max(1, MIN_END_SEGMENT // 2)
+MIN_START_ROUTE_CLEARANCE_CELLS = 2
 MAX_VISIBLE_MESSAGES = 5
 MIN_BLOCK_GAP = 2 * GRID_SIZE
 DIAGONAL_BLOCK_GAP = GRID_SIZE
@@ -186,6 +201,84 @@ PATHFINDING_TURN_PENALTIES = (0,)
 PATHFINDING_MAX_EXPANDED = 1800
 PREVIEW_PATHFINDING_TURN_PENALTIES = (0,)
 PREVIEW_PATHFINDING_MAX_EXPANDED = 900
+
+
+def apply_ui_scale(scale: float) -> None:
+    global UI_SCALE
+    global RAW_DISPLAY_SCALE, TEXT_SCALE
+    global SIDEBAR_WIDTH, HEADER_HEIGHT, CANVAS_MARGIN, GRID_SIZE
+    global MAX_BLOCK_LABEL_SIZE, MIN_BLOCK_LABEL_SIZE
+    global HANDLE_RADIUS, HANDLE_HIT_RADIUS, ARROW_HEAD_LENGTH
+    global MIN_CONNECTOR_SEGMENT, MIN_START_STEM, MIN_END_SEGMENT
+    global MIN_END_STUB_FALLBACK, MIN_BLOCK_GAP, DIAGONAL_BLOCK_GAP
+    global CONNECTOR_OBJECT_CLEARANCE
+
+    clamped = max(1.0, min(scale, 2.0))
+    RAW_DISPLAY_SCALE = clamped
+    # Keep macOS HiDPI from over-inflating the entire layout.
+    UI_SCALE = 1.0 + (clamped - 1.0) * 0.45
+    TEXT_SCALE = 1.0 + (clamped - 1.0) * 0.35
+
+    SIDEBAR_WIDTH = max(300, round(BASE_SIDEBAR_WIDTH * UI_SCALE))
+    HEADER_HEIGHT = max(120, round(BASE_HEADER_HEIGHT * UI_SCALE))
+    CANVAS_MARGIN = max(12, round(BASE_CANVAS_MARGIN * UI_SCALE))
+    GRID_SIZE = max(16, round(BASE_GRID_SIZE * UI_SCALE))
+
+    MAX_BLOCK_LABEL_SIZE = max(
+        BASE_MIN_BLOCK_LABEL_SIZE,
+        round(BASE_MAX_BLOCK_LABEL_SIZE * TEXT_SCALE),
+    )
+    MIN_BLOCK_LABEL_SIZE = max(8, round(BASE_MIN_BLOCK_LABEL_SIZE * TEXT_SCALE))
+    HANDLE_RADIUS = max(6, round(BASE_HANDLE_RADIUS * UI_SCALE))
+    HANDLE_HIT_RADIUS = max(HANDLE_RADIUS + 4, round(BASE_HANDLE_HIT_RADIUS * UI_SCALE))
+    ARROW_HEAD_LENGTH = max(8, round(BASE_ARROW_HEAD_LENGTH * UI_SCALE))
+
+    MIN_CONNECTOR_SEGMENT = ARROW_HEAD_LENGTH * 2
+    MIN_START_STEM = max(1, GRID_SIZE // 2)
+    MIN_END_SEGMENT = max(1, GRID_SIZE // 2)
+    MIN_END_STUB_FALLBACK = max(1, MIN_END_SEGMENT // 2)
+    MIN_BLOCK_GAP = 2 * GRID_SIZE
+    DIAGONAL_BLOCK_GAP = GRID_SIZE
+    CONNECTOR_OBJECT_CLEARANCE = GRID_SIZE
+
+
+def detect_macos_ui_scale(window: ctypes.c_void_p) -> float:
+    if sys.platform != "darwin":
+        return 1.0
+    window_scale = sdl2.SDL_GetWindowDisplayScale(window)
+    if window_scale > 0:
+        return float(window_scale)
+    pixel_density = sdl2.SDL_GetWindowPixelDensity(window)
+    if pixel_density > 0:
+        return float(pixel_density)
+    display_id = sdl2.SDL_GetDisplayForWindow(window)
+    if display_id == 0:
+        return 1.0
+    scale = sdl2.SDL_GetDisplayContentScale(display_id)
+    if scale <= 0:
+        return 1.0
+    return float(scale)
+
+
+def scaled_text_size(size: int) -> int:
+    return max(8, round(size * TEXT_SCALE))
+
+
+def initial_window_size() -> tuple[int, int]:
+    width = WINDOW_WIDTH
+    height = WINDOW_HEIGHT
+    display_id = sdl2.SDL_GetPrimaryDisplay()
+    if display_id == 0:
+        return (width, height)
+
+    usable = sdl2.SDL_Rect(0, 0, 0, 0)
+    if not sdl2.SDL_GetDisplayUsableBounds(display_id, ctypes.byref(usable)):
+        return (width, height)
+
+    # Keep a small margin from screen edges so title bar and dock/menu feel native.
+    max_w = max(640, usable.w - 32)
+    max_h = max(480, usable.h - 32)
+    return (min(width, max_w), min(height, max_h))
 
 
 @dataclass
@@ -348,18 +441,20 @@ class TextRenderer:
     ) -> int:
         lines = wrap_text(text=text, max_chars=max(20, width // max(7, size // 2 + 2)))
         cursor_y = y
+        scaled_size = scaled_text_size(size)
         for line in lines:
             self.draw(line, x, cursor_y, color=color, size=size)
-            cursor_y += size + line_gap
+            cursor_y += scaled_size + line_gap
         return cursor_y
 
     def _font(self, size: int) -> ctypes.c_void_p:
-        if size not in self.fonts:
-            font = sdlttf.TTF_OpenFont(self.font_path.encode("utf-8"), size)
+        scaled_size = scaled_text_size(size)
+        if scaled_size not in self.fonts:
+            font = sdlttf.TTF_OpenFont(self.font_path.encode("utf-8"), scaled_size)
             if not font:
                 raise RuntimeError("Unable to open font for text rendering.")
-            self.fonts[size] = font
-        return self.fonts[size]
+            self.fonts[scaled_size] = font
+        return self.fonts[scaled_size]
 
     def _entry(
         self,
@@ -407,19 +502,28 @@ def main() -> None:
         sdl2.SDL_Quit()
         raise RuntimeError("SDL_ttf initialization failed.")
 
+    start_width, start_height = initial_window_size()
     window = sdl2.SDL_CreateWindow(
         b"Flow Diagram Learning Game",
         sdl2.SDL_WINDOWPOS_CENTERED,
         sdl2.SDL_WINDOWPOS_CENTERED,
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        sdl2.SDL_WINDOW_SHOWN | sdl2.SDL_WINDOW_MAXIMIZED | sdl2.SDL_WINDOW_RESIZABLE,
+        start_width,
+        start_height,
+        sdl2.SDL_WINDOW_SHOWN
+        | sdl2.SDL_WINDOW_RESIZABLE
+        | sdl2.SDL_WINDOW_HIGH_PIXEL_DENSITY,
     )
     if not window:
         sdlttf.TTF_Quit()
         sdl2.SDL_Quit()
         raise RuntimeError("Could not create SDL window.")
-    sdl2.SDL_SetWindowMinimumSize(window, MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+
+    apply_ui_scale(detect_macos_ui_scale(window))
+    sdl2.SDL_SetWindowMinimumSize(
+        window,
+        min(MIN_WINDOW_WIDTH, start_width),
+        min(MIN_WINDOW_HEIGHT, start_height),
+    )
 
     renderer = sdl2.SDL_CreateRenderer(
         window,
@@ -457,6 +561,15 @@ def main() -> None:
 def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
     game = FlowLearningGame()
     builder = BuilderState()
+    builder.push_message(
+        "Debug: "
+        f"raw_scale={RAW_DISPLAY_SCALE:.2f} "
+        f"ui_scale={UI_SCALE:.2f} "
+        f"text_scale={TEXT_SCALE:.2f} "
+        f"body15->{scaled_text_size(15)}px "
+        f"platform={sys.platform}",
+        SUBTEXT_COLOR,
+    )
     arrow_cursor = sdl2.SDL_CreateSystemCursor(sdl2.SDL_SYSTEM_CURSOR_ARROW)
     hand_cursor = sdl2.SDL_CreateSystemCursor(sdl2.SDL_SYSTEM_CURSOR_HAND)
 
@@ -481,15 +594,26 @@ def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
                         key=event.key.key,
                     )
                 elif event_type == sdl2.SDL_MOUSEBUTTONDOWN:
-                    handle_mouse_down(game=game, builder=builder, event=event.button)
+                    handle_mouse_down(
+                        game=game,
+                        builder=builder,
+                        renderer=renderer,
+                        event=event.button,
+                    )
                 elif event_type == sdl2.SDL_MOUSEBUTTONUP:
                     handle_mouse_up(builder=builder, event=event.button)
                 elif event_type == sdl2.SDL_MOUSEMOTION:
-                    handle_mouse_motion(game=game, builder=builder, event=event.motion)
+                    handle_mouse_motion(
+                        game=game,
+                        builder=builder,
+                        renderer=renderer,
+                        event=event.motion,
+                    )
 
             update_cursor_icon(
                 game=game,
                 builder=builder,
+                renderer=renderer,
                 arrow_cursor=arrow_cursor,
                 hand_cursor=hand_cursor,
             )
@@ -504,17 +628,19 @@ def run_loop(renderer: ctypes.c_void_p, text: TextRenderer) -> None:
 def update_cursor_icon(
     game: FlowLearningGame,
     builder: BuilderState,
+    renderer: ctypes.c_void_p,
     arrow_cursor: ctypes.c_void_p,
     hand_cursor: ctypes.c_void_p,
 ) -> None:
     mouse_x = ctypes.c_int(0)
     mouse_y = ctypes.c_int(0)
     sdl2.SDL_GetMouseState(ctypes.byref(mouse_x), ctypes.byref(mouse_y))
+    rx, ry = window_to_render_coords(renderer, mouse_x.value, mouse_y.value)
     is_selectable = is_hovering_selectable(
         game=game,
         builder=builder,
-        x=mouse_x.value,
-        y=mouse_y.value,
+        x=rx,
+        y=ry,
     )
     if is_selectable and hand_cursor:
         sdl2.SDL_SetCursor(hand_cursor)
@@ -538,6 +664,25 @@ def current_width() -> int:
 
 def current_height() -> int:
     return VIEW_HEIGHT
+
+
+def window_to_render_coords(
+    renderer: ctypes.c_void_p,
+    x: int,
+    y: int,
+) -> tuple[int, int]:
+    fx = ctypes.c_float(0.0)
+    fy = ctypes.c_float(0.0)
+    ok = sdl2.SDL_RenderCoordinatesFromWindow(
+        renderer,
+        float(x),
+        float(y),
+        ctypes.byref(fx),
+        ctypes.byref(fy),
+    )
+    if ok:
+        return (int(round(fx.value)), int(round(fy.value)))
+    return (x, y)
 
 
 def is_hovering_selectable(
@@ -645,10 +790,10 @@ def handle_keydown(game: FlowLearningGame, builder: BuilderState, key: int) -> b
 def handle_mouse_down(
     game: FlowLearningGame,
     builder: BuilderState,
+    renderer: ctypes.c_void_p,
     event: sdl2.SDL_MouseButtonEvent,
 ) -> None:
-    mouse_x = int(event.x)
-    mouse_y = int(event.y)
+    mouse_x, mouse_y = window_to_render_coords(renderer, int(event.x), int(event.y))
 
     if builder.modal is not None:
         if event.button == sdl2.SDL_BUTTON_LEFT:
@@ -774,6 +919,7 @@ def handle_mouse_up(builder: BuilderState, event: sdl2.SDL_MouseButtonEvent) -> 
 def handle_mouse_motion(
     game: FlowLearningGame,
     builder: BuilderState,
+    renderer: ctypes.c_void_p,
     event: sdl2.SDL_MouseMotionEvent,
 ) -> None:
     if game.is_completed():
@@ -782,8 +928,7 @@ def handle_mouse_motion(
     if builder.modal is not None:
         return
 
-    mouse_x = int(event.x)
-    mouse_y = int(event.y)
+    mouse_x, mouse_y = window_to_render_coords(renderer, int(event.x), int(event.y))
 
     if builder.selected_template is not None:
         stage = game.current_stage()
@@ -1371,7 +1516,7 @@ def draw_validation_modal(
     set_color(renderer, modal.color)
     draw_rounded_rect_outline(renderer=renderer, rect=rect, radius=12)
 
-    text.draw(modal.title, rect.x + 24, rect.y + 20, color=modal.color, size=28)
+    text.draw(modal.title, rect.x + 24, rect.y + 20, color=modal.color, size=30)
     y = rect.y + 66
     for line in modal.lines:
         y = text.wrap_draw(
@@ -1380,7 +1525,7 @@ def draw_validation_modal(
             y=y,
             width=rect.w - 48,
             color=TEXT_COLOR,
-            size=18,
+            size=20,
             line_gap=2,
         ) + 4
 
@@ -1391,7 +1536,7 @@ def draw_validation_modal(
         draw_rounded_rect_outline(renderer=renderer, rect=button_rect, radius=8)
         label_x = button_rect.x + 18
         label_y = button_rect.y + 14
-        text.draw(button.label, label_x, label_y, color=TEXT_COLOR, size=16)
+        text.draw(button.label, label_x, label_y, color=TEXT_COLOR, size=18)
 
 
 def draw_grid(renderer: ctypes.c_void_p) -> None:
@@ -1438,25 +1583,25 @@ def draw_header(renderer: ctypes.c_void_p) -> None:
 
 def draw_stage_text(text: TextRenderer, stage: Stage) -> None:
     left = SIDEBAR_WIDTH + 28
-    top = 20
+    top = 18
 
-    text.draw("Flow Diagram Trainer", left, top, color=ACCENT, size=26)
-    text.draw(stage.title, left, top + 34, color=TEXT_COLOR, size=22)
+    text.draw("Flow Diagram Trainer", left, top, color=ACCENT, size=30)
+    text.draw(stage.title, left, top + 44, color=TEXT_COLOR, size=24)
 
     task_x = left + 10
-    task_y = top + 72
+    task_y = top + 92
     task_width = max(240, current_width() - SIDEBAR_WIDTH - 110)
     task_text = f"Task: {stage.description}"
-    line_gap = 4
-    task_size = 16
+    line_gap = 6
+    task_size = 17
     max_chars = max(20, task_width // max(7, task_size // 2 + 2))
     lines = wrap_text(text=task_text, max_chars=max_chars)
     task_end_y = task_y + len(lines) * (task_size + line_gap)
     task_box = sdl2.SDL_Rect(
         left,
-        top + 66,
+        top + 84,
         task_width + 20,
-        max(34, task_end_y - (top + 66) + 6),
+        max(34, task_end_y - (top + 84) + 8),
     )
     set_color(text.renderer, (12, 14, 20, 220))
     draw_rounded_rect_filled(renderer=text.renderer, rect=task_box, radius=8)
@@ -1471,37 +1616,37 @@ def draw_stage_text(text: TextRenderer, stage: Stage) -> None:
 def draw_controls(text: TextRenderer, builder: BuilderState) -> None:
     x = 20
     y = 16
-    box = sdl2.SDL_Rect(16, 12, SIDEBAR_WIDTH - 32, 184)
+    box = sdl2.SDL_Rect(16, 12, SIDEBAR_WIDTH - 32, 224)
     set_color(text.renderer, (12, 14, 20, 220))
     draw_rounded_rect_filled(renderer=text.renderer, rect=box, radius=8)
     set_color(text.renderer, PANEL_BORDER)
     draw_rounded_rect_outline(renderer=text.renderer, rect=box, radius=8)
 
-    text.draw("Controls", x, y, color=ACCENT, size=22)
-    text.draw("Left click block: select/move", x, y + 34, color=SUBTEXT_COLOR, size=15)
+    text.draw("Controls", x, y, color=ACCENT, size=24)
+    text.draw("Left click block: select/move", x, y + 38, color=SUBTEXT_COLOR, size=17)
     text.draw(
         "Left click handle: start connector drag",
         x,
-        y + 54,
+        y + 64,
         color=SUBTEXT_COLOR,
-        size=15,
+        size=17,
     )
     text.draw(
         "Click near target handle: connect",
         x,
-        y + 74,
+        y + 90,
         color=SUBTEXT_COLOR,
-        size=15,
+        size=17,
     )
-    text.draw("Right click node: remove", x, y + 94, color=SUBTEXT_COLOR, size=15)
+    text.draw("Right click node: remove", x, y + 116, color=SUBTEXT_COLOR, size=17)
     text.draw(
         "Enter: validate   X: undo edge   R: clear",
         x,
-        y + 114,
+        y + 142,
         color=SUBTEXT_COLOR,
-        size=15,
+        size=17,
     )
-    text.draw("Grid snap + 90° auto-routing", x, y + 134, color=SUBTEXT_COLOR, size=15)
+    text.draw("Grid snap + 90° auto-routing", x, y + 168, color=SUBTEXT_COLOR, size=17)
 
     mode_text = (
         "Mode: CONNECT"
@@ -1513,14 +1658,14 @@ def draw_controls(text: TextRenderer, builder: BuilderState) -> None:
         if builder.drag_connector_source is not None
         else SUBTEXT_COLOR
     )
-    text.draw(mode_text, x, y + 156, color=mode_color, size=16)
+    text.draw(mode_text, x, y + 194, color=mode_color, size=18)
 
 
 def draw_template_list(text: TextRenderer, stage: Stage, builder: BuilderState) -> None:
     left = 24
     top = HEADER_HEIGHT + 90
 
-    text.draw("Select Block", left, top - 34, color=ACCENT, size=20)
+    text.draw("Select Block", left, top - 34, color=ACCENT, size=22)
 
     for index, node in enumerate(stage.expected_nodes):
         box = template_item_rect(index)
@@ -1539,30 +1684,30 @@ def draw_template_list(text: TextRenderer, stage: Stage, builder: BuilderState) 
         set_color(text.renderer, PANEL_BORDER)
         draw_rounded_rect_outline(renderer=text.renderer, rect=box, radius=8)
 
-        preview_rect = sdl2.SDL_Rect(left + 8, item_top + 8, 96, 56)
+        preview_rect = sdl2.SDL_Rect(left + 8, item_top + 10, 110, 64)
         draw_template_preview(renderer=text.renderer, node=node, rect=preview_rect)
 
-        text.draw(node.node_id, left + 116, item_top + 8, color=TEXT_COLOR, size=15)
+        text.draw(node.node_id, left + 130, item_top + 10, color=TEXT_COLOR, size=17)
         text.draw(
             node.label,
-            left + 116,
-            item_top + 30,
+            left + 130,
+            item_top + 36,
             color=SUBTEXT_COLOR,
-            size=14,
+            size=16,
         )
         text.draw(
             node.block_type.value,
-            left + 116,
-            item_top + 50,
+            left + 130,
+            item_top + 62,
             color=SUBTEXT_COLOR,
-            size=13,
+            size=15,
         )
 
 
 def template_item_rect(index: int) -> sdl2.SDL_Rect:
     left = 24
     top = HEADER_HEIGHT + 90
-    item_height = 86
+    item_height = 104
     item_top = top + index * item_height
     return sdl2.SDL_Rect(left - 4, item_top - 4, SIDEBAR_WIDTH - 36, item_height - 8)
 
@@ -1584,7 +1729,7 @@ def draw_swimlanes(renderer: ctypes.c_void_p, text: TextRenderer, stage: Stage) 
 
         set_color(renderer, PANEL_BORDER)
         sdl2.SDL_RenderDrawRect(renderer, lane_rect)
-        text.draw(lane, lane_rect.x + 10, lane_rect.y + 8, color=SUBTEXT_COLOR, size=14)
+        text.draw(lane, lane_rect.x + 10, lane_rect.y + 8, color=SUBTEXT_COLOR, size=16)
 
 
 def draw_nodes(
@@ -1786,7 +1931,7 @@ def draw_edges(
             mx += 8
             my -= 10
             label_color = HANDLE_ACTIVE if is_selected else EDGE_COLOR
-            text.draw(edge.label, mx, my, color=label_color, size=15)
+            text.draw(edge.label, mx, my, color=label_color, size=16)
 
 
 def draw_drag_connector_preview(
@@ -1923,7 +2068,7 @@ def draw_messages(text: TextRenderer, builder: BuilderState) -> None:
 
     # Always place the latest message closest to the bottom edge.
     visible = builder.messages[-MAX_VISIBLE_MESSAGES:]
-    box_height = MAX_VISIBLE_MESSAGES * 22 + 14
+    box_height = MAX_VISIBLE_MESSAGES * 26 + 14
     box_top = bottom - box_height - 4
     box = sdl2.SDL_Rect(left - 10, box_top, current_width() - left - 24, box_height)
     set_color(text.renderer, (12, 14, 20, 220))
@@ -1932,8 +2077,8 @@ def draw_messages(text: TextRenderer, builder: BuilderState) -> None:
     sdl2.SDL_RenderDrawRect(text.renderer, box)
 
     for index, (message, color) in enumerate(reversed(visible)):
-        y = bottom - (index + 1) * 22
-        text.draw(message, left, y, color=color, size=15)
+        y = bottom - (index + 1) * 26
+        text.draw(message, left, y, color=color, size=16)
 
 
 def draw_template_preview(
@@ -2214,6 +2359,32 @@ def route_path_between_points(
             snap=False,
         )
     start_grid = snap_point_to_grid(start_entry[0], start_entry[1], rect=rect)
+    sx, sy = anchor_direction(source_anchor)
+    tx, ty = anchor_direction(target_anchor)
+    if include_start_stem:
+        start_anchor_g = grid_from_pixel(start[0], start[1], rect)
+        target_anchor_g = grid_from_pixel(end[0], end[1], rect)
+        source_to_target_along = (
+            (target_anchor_g[0] - start_anchor_g[0]) * sx
+            + (target_anchor_g[1] - start_anchor_g[1]) * sy
+        )
+
+        forced_cells = MIN_START_ROUTE_CLEARANCE_CELLS
+        if source_to_target_along > 0:
+            # In tight source->target spacing, reduce the forced start offset
+            # so endpoint approach + arrow rendering keep enough room.
+            forced_cells = min(
+                forced_cells,
+                max(0, source_to_target_along - 2),
+            )
+
+        if forced_cells > 0:
+            forced_start = (
+                start_anchor_g[0] + sx * forced_cells,
+                start_anchor_g[1] + sy * forced_cells,
+            )
+            if in_grid_bounds(forced_start[0], forced_start[1], rect):
+                start_grid = pixel_from_grid(forced_start[0], forced_start[1], rect)
 
     base_blocked = build_blocked_cells(
         builder=builder,
@@ -2229,8 +2400,6 @@ def route_path_between_points(
     start_entry_g = grid_from_pixel(start_entry[0], start_entry[1], rect)
     for endpoint_cell in (start_g, start_outer_g, start_entry_g):
         base_blocked.discard(endpoint_cell)
-    sx, sy = anchor_direction(source_anchor)
-    tx, ty = anchor_direction(target_anchor)
     start_escape = (start_g[0] + sx, start_g[1] + sy)
     if in_grid_bounds(start_escape[0], start_escape[1], rect):
         base_blocked.discard(start_escape)
@@ -2239,99 +2408,169 @@ def route_path_between_points(
     if MIN_END_STUB_FALLBACK < MIN_END_SEGMENT:
         end_stub_candidates.append(MIN_END_STUB_FALLBACK)
 
-    for end_stub in end_stub_candidates:
-        end_entry = extend_point_by_anchor(
-            point=end_outer,
-            anchor_idx=target_anchor,
-            distance=end_stub,
-            rect=rect,
-            snap=False,
-        )
-        end_grid = snap_point_to_grid(end_entry[0], end_entry[1], rect=rect)
-        end_g = grid_from_pixel(end_grid[0], end_grid[1], rect)
-        end_outer_g = grid_from_pixel(end_outer[0], end_outer[1], rect)
-        end_entry_g = grid_from_pixel(end_entry[0], end_entry[1], rect)
+    strict_best: list[tuple[int, int]] = []
+    relaxed_best: list[tuple[int, int]] = []
 
-        blocked = set(base_blocked)
-        for endpoint_cell in (end_g, end_outer_g, end_entry_g):
-            blocked.discard(endpoint_cell)
-        end_escape = (end_g[0] + tx, end_g[1] + ty)
-        if in_grid_bounds(end_escape[0], end_escape[1], rect):
-            blocked.discard(end_escape)
+    # Compute strict and relaxed candidates separately.
+    for allow_relaxed in (False, True):
+        best_full_path: list[tuple[int, int]] = []
+        best_score: tuple[int, int, int, int, int, int] | None = None
 
-        candidate_end_points = [
-            end_g,
-            (end_g[0] + perp_dx, end_g[1] + perp_dy),
-            (end_g[0] - perp_dx, end_g[1] - perp_dy),
-        ]
-        end_candidates: list[tuple[tuple[int, int], set[tuple[int, int]]]] = []
-        seen_end: set[tuple[int, int]] = set()
-        for candidate_end in candidate_end_points:
-            if candidate_end in seen_end:
-                continue
-            seen_end.add(candidate_end)
-            if not in_grid_bounds(candidate_end[0], candidate_end[1], rect):
-                continue
-            primary_pre_end = (candidate_end[0] + tx, candidate_end[1] + ty)
-            if not in_grid_bounds(primary_pre_end[0], primary_pre_end[1], rect):
-                continue
-            # Strict pass: require outward-side entry into the end cell.
-            end_candidates.append((candidate_end, {primary_pre_end}))
-            # Relaxed pass: also allow side entries if strict routing fails.
-            relaxed_pre_end = {
-                primary_pre_end,
-                (candidate_end[0] + perp_dx, candidate_end[1] + perp_dy),
-                (candidate_end[0] - perp_dx, candidate_end[1] - perp_dy),
-            }
-            relaxed_pre_end = {
-                cell
-                for cell in relaxed_pre_end
-                if in_grid_bounds(cell[0], cell[1], rect)
-            }
-            if relaxed_pre_end != {primary_pre_end}:
-                end_candidates.append((candidate_end, relaxed_pre_end))
-
-        for candidate_end, allowed_pre_end in end_candidates:
-            candidate_blocked = set(blocked)
-            candidate_blocked.discard(candidate_end)
-            for allowed_cell in allowed_pre_end:
-                candidate_blocked.discard(allowed_cell)
-            candidate_end_pixel = pixel_from_grid(
-                candidate_end[0],
-                candidate_end[1],
-                rect,
-            )
-            candidate_path = find_orthogonal_path(
-                start=start_grid,
-                end=candidate_end_pixel,
-                blocked=candidate_blocked,
+        for end_stub in end_stub_candidates:
+            end_entry = extend_point_by_anchor(
+                point=end_outer,
+                anchor_idx=target_anchor,
+                distance=end_stub,
                 rect=rect,
-                occupied_points=occupied_points or set(),
-                occupied_segments=occupied_segments or set(),
-                required_pre_end=allowed_pre_end,
-                turn_penalties=(
-                    PREVIEW_PATHFINDING_TURN_PENALTIES
-                    if preview_mode
-                    else PATHFINDING_TURN_PENALTIES
-                ),
-                max_expanded=(
-                    PREVIEW_PATHFINDING_MAX_EXPANDED
-                    if preview_mode
-                    else PATHFINDING_MAX_EXPANDED
-                ),
+                snap=False,
             )
-            if not candidate_path:
-                continue
+            end_grid = snap_point_to_grid(end_entry[0], end_entry[1], rect=rect)
+            end_g = grid_from_pixel(end_grid[0], end_grid[1], rect)
+            end_outer_g = grid_from_pixel(end_outer[0], end_outer[1], rect)
+            end_entry_g = grid_from_pixel(end_entry[0], end_entry[1], rect)
 
-            full_path: list[tuple[int, int]] = [start_outer]
-            append_orthogonal_segment(full_path, start_entry)
-            append_orthogonal_segment(full_path, start_grid)
-            for point in candidate_path[1:]:
-                append_orthogonal_segment(full_path, point)
-            append_orthogonal_segment(full_path, end_entry)
-            append_orthogonal_segment(full_path, end_outer)
-            return compress_collinear(full_path)
+            blocked = set(base_blocked)
+            for endpoint_cell in (end_g, end_outer_g, end_entry_g):
+                blocked.discard(endpoint_cell)
+            end_escape = (end_g[0] + tx, end_g[1] + ty)
+            if in_grid_bounds(end_escape[0], end_escape[1], rect):
+                blocked.discard(end_escape)
 
+            candidate_end_points = [
+                end_g,
+                (end_g[0] + perp_dx, end_g[1] + perp_dy),
+                (end_g[0] - perp_dx, end_g[1] - perp_dy),
+            ]
+            end_candidates: list[
+                tuple[tuple[int, int], set[tuple[int, int]], int]
+            ] = []
+            seen_end: set[tuple[int, int]] = set()
+            for candidate_end in candidate_end_points:
+                if candidate_end in seen_end:
+                    continue
+                seen_end.add(candidate_end)
+                if not in_grid_bounds(candidate_end[0], candidate_end[1], rect):
+                    continue
+                primary_pre_end = (candidate_end[0] + tx, candidate_end[1] + ty)
+                if not in_grid_bounds(primary_pre_end[0], primary_pre_end[1], rect):
+                    continue
+
+                if not allow_relaxed:
+                    # Strict pass: require outward-side entry into the end cell.
+                    end_candidates.append((candidate_end, {primary_pre_end}, 0))
+                    continue
+
+                # Relaxed pass: allow side and opposite entries only.
+                opposite_pre_end = (candidate_end[0] - tx, candidate_end[1] - ty)
+                relaxed_pre_end = {
+                    primary_pre_end,
+                    (candidate_end[0] + perp_dx, candidate_end[1] + perp_dy),
+                    (candidate_end[0] - perp_dx, candidate_end[1] - perp_dy),
+                    opposite_pre_end,
+                }
+                relaxed_pre_end = {
+                    cell
+                    for cell in relaxed_pre_end
+                    if in_grid_bounds(cell[0], cell[1], rect)
+                }
+                if relaxed_pre_end != {primary_pre_end}:
+                    end_candidates.append((candidate_end, relaxed_pre_end, 1))
+
+            for candidate_end, allowed_pre_end, mode_penalty in end_candidates:
+                candidate_blocked = set(blocked)
+                candidate_blocked.discard(candidate_end)
+                for allowed_cell in allowed_pre_end:
+                    candidate_blocked.discard(allowed_cell)
+                candidate_end_pixel = pixel_from_grid(
+                    candidate_end[0],
+                    candidate_end[1],
+                    rect,
+                )
+                candidate_path = find_orthogonal_path(
+                    start=start_grid,
+                    end=candidate_end_pixel,
+                    blocked=candidate_blocked,
+                    rect=rect,
+                    occupied_points=occupied_points or set(),
+                    occupied_segments=occupied_segments or set(),
+                    required_pre_end=allowed_pre_end,
+                    turn_penalties=(
+                        PREVIEW_PATHFINDING_TURN_PENALTIES
+                        if preview_mode
+                        else PATHFINDING_TURN_PENALTIES
+                    ),
+                    max_expanded=(
+                        PREVIEW_PATHFINDING_MAX_EXPANDED
+                        if preview_mode
+                        else PATHFINDING_MAX_EXPANDED
+                    ),
+                )
+                if not candidate_path:
+                    continue
+
+                approach_penalty = endpoint_approach_penalty(
+                    path=candidate_path,
+                    rect=rect,
+                    end_cell=candidate_end,
+                    tx=tx,
+                    ty=ty,
+                    perp_dx=perp_dx,
+                    perp_dy=perp_dy,
+                )
+                full_path: list[tuple[int, int]] = [start_outer]
+                start_entry_aligned = snap_point_to_grid(
+                    start_entry[0],
+                    start_entry[1],
+                    rect=rect,
+                )
+                end_entry_aligned = snap_point_to_grid(
+                    end_entry[0],
+                    end_entry[1],
+                    rect=rect,
+                )
+                append_orthogonal_segment(full_path, start_entry_aligned)
+                append_orthogonal_segment(full_path, start_grid)
+                for point in candidate_path[1:]:
+                    append_orthogonal_segment(full_path, point)
+                append_orthogonal_segment(full_path, end_entry_aligned)
+                append_orthogonal_segment(full_path, end_outer)
+                reduced = compress_collinear(full_path)
+                efficiency = path_efficiency_score(reduced)
+                min_clearance, avg_clearance = path_clearance_metrics(
+                    path=reduced,
+                    blocked=candidate_blocked,
+                    rect=rect,
+                )
+                # Prefer strict endpoint mode, then minimize bends/length.
+                score = (
+                    mode_penalty,
+                    efficiency[0],
+                    efficiency[1],
+                    -min_clearance,
+                    -avg_clearance,
+                    approach_penalty,
+                )
+                if best_score is None or score < best_score:
+                    best_score = score
+                    best_full_path = reduced
+
+        if allow_relaxed:
+            relaxed_best = best_full_path
+        else:
+            strict_best = best_full_path
+
+    if strict_best and relaxed_best:
+        strict_eff = path_efficiency_score(strict_best)
+        relaxed_eff = path_efficiency_score(relaxed_best)
+        # Keep strict behavior by default; allow relaxed when it materially
+        # reduces bends/segments (e.g., 5 -> 3) while staying valid.
+        if relaxed_eff[0] + 1 < strict_eff[0]:
+            return relaxed_best
+        return strict_best
+    if strict_best:
+        return strict_best
+    if relaxed_best:
+        return relaxed_best
     return []
 
 
@@ -2618,7 +2857,6 @@ def find_orthogonal_path_single_pass(
     end_g = grid_from_pixel(end[0], end[1], rect)
     start_state = (start_g[0], start_g[1], -1)
     directions = ((1, 0), (-1, 0), (0, 1), (0, -1))
-
     open_heap: list[tuple[int, int, tuple[int, int, int]]] = []
     heapq.heappush(open_heap, (0, 0, start_state))
 
@@ -2670,7 +2908,8 @@ def find_orthogonal_path_single_pass(
                 if current_dir != -1 and current_dir != dir_idx
                 else 0
             )
-            tentative_g = cost + 1 + turn_cost
+            clearance_cost = obstacle_proximity_penalty(neighbor, blocked)
+            tentative_g = cost + 1 + turn_cost + clearance_cost
             neighbor_state = (nx, ny, dir_idx)
             if tentative_g >= g_score.get(neighbor_state, 10**9):
                 continue
@@ -2685,6 +2924,35 @@ def find_orthogonal_path_single_pass(
             )
 
     return []
+
+
+def obstacle_proximity_penalty(
+    cell: tuple[int, int],
+    blocked: set[tuple[int, int]],
+) -> int:
+    # Disabled for parity: rely on hard clearance constraints + route scoring.
+    del cell, blocked
+    return 0
+
+
+def nearest_blocked_manhattan_distance(
+    cell: tuple[int, int],
+    blocked: set[tuple[int, int]],
+    max_radius: int,
+) -> int:
+    if not blocked:
+        return max_radius + 1
+    cx, cy = cell
+    for radius in range(1, max_radius + 1):
+        for dx in range(-radius, radius + 1):
+            dy = radius - abs(dx)
+            candidates = ((cx + dx, cy + dy),)
+            if dy != 0:
+                candidates += ((cx + dx, cy - dy),)
+            for candidate in candidates:
+                if candidate in blocked:
+                    return radius
+    return max_radius + 1
 
 
 def reconstruct_path_with_direction(
@@ -2710,6 +2978,56 @@ def path_efficiency_score(path: list[tuple[int, int]]) -> tuple[int, int]:
         tx, ty = path[idx + 1]
         length += abs(tx - sx) + abs(ty - sy)
     return (segments, length)
+
+
+def path_clearance_metrics(
+    path: list[tuple[int, int]],
+    blocked: set[tuple[int, int]],
+    rect: sdl2.SDL_Rect,
+) -> tuple[int, int]:
+    if not path:
+        return (0, 0)
+    if not blocked:
+        return (10**6, 10**6)
+
+    points = [grid_from_pixel(x, y, rect) for x, y in path]
+    min_clearance = 10**9
+    total_clearance = 0
+    for px, py in points:
+        best = 10**9
+        for bx, by in blocked:
+            distance = abs(px - bx) + abs(py - by)
+            if distance < best:
+                best = distance
+                if best == 0:
+                    break
+        min_clearance = min(min_clearance, best)
+        total_clearance += best
+
+    avg_clearance = total_clearance // len(points)
+    return (min_clearance, avg_clearance)
+
+
+def endpoint_approach_penalty(
+    path: list[tuple[int, int]],
+    rect: sdl2.SDL_Rect,
+    end_cell: tuple[int, int],
+    tx: int,
+    ty: int,
+    perp_dx: int,
+    perp_dy: int,
+) -> int:
+    if len(path) < 2:
+        return 3
+    pre_end = grid_from_pixel(path[-2][0], path[-2][1], rect)
+    preferred = (end_cell[0] + tx, end_cell[1] + ty)
+    side_a = (end_cell[0] + perp_dx, end_cell[1] + perp_dy)
+    side_b = (end_cell[0] - perp_dx, end_cell[1] - perp_dy)
+    if pre_end == preferred:
+        return 0
+    if pre_end in (side_a, side_b):
+        return 1
+    return 2
 
 
 def mark_path_occupancy(
@@ -2865,15 +3183,22 @@ def compress_collinear(points: list[tuple[int, int]]) -> list[tuple[int, int]]:
     if len(points) <= 2:
         return points
 
-    reduced = [points[0]]
-    for idx in range(1, len(points) - 1):
+    deduped: list[tuple[int, int]] = [points[0]]
+    for point in points[1:]:
+        if point != deduped[-1]:
+            deduped.append(point)
+    if len(deduped) <= 2:
+        return deduped
+
+    reduced = [deduped[0]]
+    for idx in range(1, len(deduped) - 1):
         ax, ay = reduced[-1]
-        bx, by = points[idx]
-        cx, cy = points[idx + 1]
+        bx, by = deduped[idx]
+        cx, cy = deduped[idx + 1]
         if (ax == bx == cx) or (ay == by == cy):
             continue
         reduced.append((bx, by))
-    reduced.append(points[-1])
+    reduced.append(deduped[-1])
     return reduced
 
 
