@@ -59,13 +59,13 @@ jobs:
               main()
           '@ | Set-Content -Path launcher.py -Encoding UTF8
 
-      - name: Build ARM64 one-file executable
+      - name: Build ARM64 onedir executable
         shell: pwsh
         run: |
           pyinstaller `
             --noconfirm `
             --clean `
-            --onefile `
+            --onedir `
             --windowed `
             --name FlowchartGame-arm64 `
             --paths src `
@@ -96,15 +96,11 @@ jobs:
 
               <StandardDirectory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLFOLDER" Name="FlowchartGame">
-                  <Component Id="MainExecutable" Guid="*">
-                    <File Id="FlowchartExe" Source="dist\FlowchartGame-arm64.exe" KeyPath="yes" />
-                  </Component>
+                  <Files Include="dist\FlowchartGame-arm64\**" />
                 </Directory>
               </StandardDirectory>
 
-              <Feature Id="MainFeature" Title="FlowchartGame" Level="1">
-                <ComponentRef Id="MainExecutable" />
-              </Feature>
+              <Feature Id="MainFeature" Title="FlowchartGame" Level="1" />
             </Package>
           </Wix>
           '@ | Set-Content -Path installer.wxs -Encoding UTF8
@@ -120,5 +116,5 @@ jobs:
           name: FlowchartGame-windows-arm64-msi
           path: |
             dist/FlowchartGame-arm64.msi
-            dist/FlowchartGame-arm64.exe
+            dist/FlowchartGame-arm64/**
             dist/*.cab

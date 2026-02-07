@@ -101,7 +101,29 @@ def gather_sdl_dll_dirs(base_dirs: list[str]) -> list[str]:
                     push(root)
         except OSError:
             continue
+        # Also scan one level up from known roots (typically app install root)
+        # with a bounded depth, so onedir layouts with custom subfolders are
+        # still discovered without a full-disk walk.
+        parent = os.path.dirname(base)
+        if parent and os.path.isdir(parent):
+            for dll_dir in walk_for_sdl_dll_dirs(parent, max_depth=4):
+                push(dll_dir)
     return found
+
+
+def walk_for_sdl_dll_dirs(root: str, max_depth: int) -> list[str]:
+    root = os.path.abspath(root)
+    matches: list[str] = []
+    root_depth = root.rstrip(os.sep).count(os.sep)
+    for current, dirs, files in os.walk(root):
+        current_depth = current.rstrip(os.sep).count(os.sep) - root_depth
+        if current_depth > max_depth:
+            dirs[:] = []
+            continue
+        lowered = [name.lower() for name in files]
+        if any(name.startswith("sdl2") and name.endswith(".dll") for name in lowered):
+            matches.append(current)
+    return matches
 
 
 configure_local_sdl_dll_paths()
