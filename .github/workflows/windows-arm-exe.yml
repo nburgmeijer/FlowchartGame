@@ -25,7 +25,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[sdl2]"
-          python -m pip install cx_Freeze
+          python -m pip install pyinstaller
 
       - name: Create launcher script
         shell: pwsh
@@ -37,60 +37,64 @@ jobs:
               main()
           '@ | Set-Content -Path launcher.py -Encoding UTF8
 
-      - name: Create cx_Freeze build script
+      - name: Build ARM64 one-file executable
+        shell: pwsh
+        run: |
+          pyinstaller `
+            --noconfirm `
+            --clean `
+            --onefile `
+            --windowed `
+            --name FlowchartGame-arm64 `
+            --paths src `
+            --collect-binaries sdl2 `
+            --collect-binaries sdl2dll `
+            --hidden-import sdl2.ext `
+            launcher.py
+
+      - name: Install WiX toolset
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix
+          "$env:USERPROFILE\\.dotnet\\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Create WiX source
         shell: pwsh
         run: |
           @'
-          import importlib.util
-          from pathlib import Path
+          <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+            <Package
+              Name="FlowchartGame"
+              Manufacturer="Contributors"
+              Version="0.1.0"
+              UpgradeCode="C8DF6A6C-F9F5-4A8E-B81C-42A903D7114B">
+              <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+              <MediaTemplate />
 
-          from cx_Freeze import Executable, setup
+              <StandardDirectory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="FlowchartGame">
+                  <Component Id="MainExecutable" Guid="*">
+                    <File Id="FlowchartExe" Source="dist\FlowchartGame-arm64.exe" KeyPath="yes" />
+                  </Component>
+                </Directory>
+              </StandardDirectory>
 
-          include_files = []
-
-          def collect_dlls_from_module(module_name: str) -> None:
-              spec = importlib.util.find_spec(module_name)
-              if spec is None or not spec.submodule_search_locations:
-                  return
-              root = Path(list(spec.submodule_search_locations)[0])
-              for dll in root.rglob("*.dll"):
-                  include_files.append((str(dll), str(Path("lib") / dll.name)))
-
-          # Prefer shipping explicit SDL2 DLL copies so target systems do not
-          # depend on preinstalled libraries.
-          collect_dlls_from_module("sdl2dll")
-          collect_dlls_from_module("sdl2")
-
-          setup(
-              name="FlowchartGame",
-              version="0.1.0",
-              description="Flow diagram learning game",
-              options={
-                  "build_exe": {
-                      "packages": ["flow_game", "sdl2", "sdl2.ext"],
-                      "include_files": include_files,
-                      "include_msvcr": True,
-                  },
-                  "bdist_msi": {
-                      "add_to_path": False,
-                  },
-              },
-              executables=[
-                  Executable(
-                      "launcher.py",
-                      target_name="FlowchartGame-arm64.exe",
-                  )
-              ],
-          )
-          '@ | Set-Content -Path build_msi.py -Encoding UTF8
+              <Feature Id="MainFeature" Title="FlowchartGame" Level="1">
+                <ComponentRef Id="MainExecutable" />
+              </Feature>
+            </Package>
+          </Wix>
+          '@ | Set-Content -Path installer.wxs -Encoding UTF8
 
       - name: Build ARM64 MSI installer
         shell: pwsh
         run: |
-          python build_msi.py bdist_msi
+          wix build installer.wxs -arch arm64 -o dist\FlowchartGame-arm64.msi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: FlowchartGame-windows-arm64-msi
-          path: dist/*.msi
+          path: |
+            dist/FlowchartGame-arm64.msi
+            dist/FlowchartGame-arm64.exe
