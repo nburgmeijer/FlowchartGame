@@ -80,19 +80,29 @@ jobs:
         run: |
           dotnet tool install --global wix
           "$env:USERPROFILE\\.dotnet\\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          wix extension add WixToolset.UI.wixext
 
       - name: Create WiX source
         shell: pwsh
         run: |
           @'
-          <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+          <Wix
+            xmlns="http://wixtoolset.org/schemas/v4/wxs"
+            xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
             <Package
               Name="FlowchartGame"
               Manufacturer="Contributors"
               Version="0.1.0"
-              UpgradeCode="C8DF6A6C-F9F5-4A8E-B81C-42A903D7114B">
+              UpgradeCode="C8DF6A6C-F9F5-4A8E-B81C-42A903D7114B"
+              Scope="perMachine">
               <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
               <MediaTemplate EmbedCab="yes" />
+              <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+              <ui:WixUI Id="WixUI_InstallDir" />
+
+              <StandardDirectory Id="ProgramMenuFolder">
+                <Directory Id="ProgramMenuDir" Name="FlowchartGame" />
+              </StandardDirectory>
 
               <StandardDirectory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLFOLDER" Name="FlowchartGame">
@@ -100,7 +110,28 @@ jobs:
                 </Directory>
               </StandardDirectory>
 
-              <Feature Id="MainFeature" Title="FlowchartGame" Level="1" />
+              <DirectoryRef Id="ProgramMenuDir">
+                <Component Id="StartMenuShortcut" Guid="*">
+                  <Shortcut
+                    Id="FlowchartGameStartMenuShortcut"
+                    Name="FlowchartGame"
+                    Description="Flowchart learning game"
+                    Target="[INSTALLFOLDER]FlowchartGame-arm64.exe"
+                    WorkingDirectory="INSTALLFOLDER" />
+                  <RemoveFolder Id="ProgramMenuDir" On="uninstall" />
+                  <RegistryValue
+                    Root="HKCU"
+                    Key="Software\FlowchartGame"
+                    Name="StartMenuShortcut"
+                    Type="integer"
+                    Value="1"
+                    KeyPath="yes" />
+                </Component>
+              </DirectoryRef>
+
+              <Feature Id="MainFeature" Title="FlowchartGame" Level="1">
+                <ComponentRef Id="StartMenuShortcut" />
+              </Feature>
             </Package>
           </Wix>
           '@ | Set-Content -Path installer.wxs -Encoding UTF8
@@ -108,7 +139,7 @@ jobs:
       - name: Build ARM64 MSI installer
         shell: pwsh
         run: |
-          wix build installer.wxs -arch arm64 -o dist\FlowchartGame-arm64.msi
+          wix build installer.wxs -ext WixToolset.UI.wixext -arch arm64 -o dist\FlowchartGame-arm64.msi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
