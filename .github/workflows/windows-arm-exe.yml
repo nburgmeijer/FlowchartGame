@@ -27,6 +27,31 @@ jobs:
           python -m pip install -e ".[sdl2]"
           python -m pip install pyinstaller
 
+      - name: Verify SDL runtime payload
+        shell: pwsh
+        run: |
+          python - << 'PY'
+          import importlib.util
+          from pathlib import Path
+
+          missing = []
+          for module in ("sdl2", "sdl2dll"):
+              spec = importlib.util.find_spec(module)
+              if spec is None:
+                  missing.append(module)
+                  continue
+              roots = list(spec.submodule_search_locations or [])
+              dlls = []
+              for root in roots:
+                  dlls.extend(Path(root).rglob("*.dll"))
+              print(f"{module}: roots={roots}")
+              print(f"{module}: dll_count={len(dlls)}")
+              for dll in dlls[:10]:
+                  print(f"  - {dll}")
+          if missing:
+              raise SystemExit(f"Missing required modules: {missing}")
+          PY
+
       - name: Create launcher script
         shell: pwsh
         run: |
@@ -47,9 +72,10 @@ jobs:
             --windowed `
             --name FlowchartGame-arm64 `
             --paths src `
-            --collect-binaries sdl2 `
-            --collect-binaries sdl2dll `
+            --collect-all sdl2 `
+            --collect-all sdl2dll `
             --hidden-import sdl2.ext `
+            --hidden-import sdl2.sdlttf `
             launcher.py
 
       - name: Install WiX toolset
