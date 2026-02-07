@@ -1,4 +1,4 @@
-name: Build Windows ARM64 Executable
+name: Build Windows ARM64 MSI Installer
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
   pull_request:
 
 jobs:
-  build-windows-arm64-exe:
+  build-windows-arm64-msi:
     runs-on: windows-11-arm
 
     steps:
@@ -25,7 +25,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[sdl2]"
-          python -m pip install pyinstaller
+          python -m pip install cx_Freeze
 
       - name: Create launcher script
         shell: pwsh
@@ -37,19 +37,61 @@ jobs:
               main()
           '@ | Set-Content -Path launcher.py -Encoding UTF8
 
-      - name: Build ARM64 executable
+      - name: Create cx_Freeze build script
         shell: pwsh
         run: |
-          pyinstaller `
-            --noconfirm `
-            --onefile `
-            --windowed `
-            --name FlowchartGame-arm64 `
-            --paths src `
-            launcher.py
+          @'
+          import importlib.util
+          from pathlib import Path
+
+          from cx_Freeze import Executable, setup
+
+          include_files = []
+
+          def collect_dlls_from_module(module_name: str) -> None:
+              spec = importlib.util.find_spec(module_name)
+              if spec is None or not spec.submodule_search_locations:
+                  return
+              root = Path(list(spec.submodule_search_locations)[0])
+              for dll in root.rglob("*.dll"):
+                  include_files.append((str(dll), str(Path("lib") / dll.name)))
+
+          # Prefer shipping explicit SDL2 DLL copies so target systems do not
+          # depend on preinstalled libraries.
+          collect_dlls_from_module("sdl2dll")
+          collect_dlls_from_module("sdl2")
+
+          setup(
+              name="FlowchartGame",
+              version="0.1.0",
+              description="Flow diagram learning game",
+              options={
+                  "build_exe": {
+                      "packages": ["flow_game", "sdl2", "sdl2.ext"],
+                      "include_files": include_files,
+                      "include_msvcr": True,
+                  },
+                  "bdist_msi": {
+                      "add_to_path": False,
+                  },
+              },
+              executables=[
+                  Executable(
+                      "launcher.py",
+                      base="Win32GUI",
+                      target_name="FlowchartGame-arm64.exe",
+                  )
+              ],
+          )
+          '@ | Set-Content -Path build_msi.py -Encoding UTF8
+
+      - name: Build ARM64 MSI installer
+        shell: pwsh
+        run: |
+          python build_msi.py bdist_msi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FlowchartGame-windows-arm64-exe
-          path: dist/FlowchartGame-arm64.exe
+          name: FlowchartGame-windows-arm64-msi
+          path: dist/*.msi
