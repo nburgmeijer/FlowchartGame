@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from flow_game.game import BlockType, DiagramNode, Stage
-from flow_game.sdl2_game import (
+from flow_game.sdl3_game import (
     BuilderState,
     BuiltEdge,
     PlacedNode,

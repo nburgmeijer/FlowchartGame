@@ -3331,7 +3331,7 @@ def point_in_diamond(x: int, y: int, rect: _sdl3.SDL_Rect) -> bool:
 
 
 def sdl_init(flags: int) -> int:
-    # Preserve SDL2-style: 0 success, non-zero failure.
+    # Keep explicit 0-success/nonzero-failure return semantics in our wrapper.
     return 0 if _sdl3.SDL_Init(flags) else -1
 
 
